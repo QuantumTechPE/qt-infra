@@ -1,4 +1,4 @@
-# CodeQL (SAST semántico de GitHub). El ruleset de main exige que no haya
+# CodeQL (SAST semántico de GitHub). El ruleset de master exige que no haya
 # alertas de seguridad HIGH o superiores.
 name: service-codeql
 

@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: __GIT_BASE_URL__/__INFRA_REPO__.git
-    targetRevision: main
+    targetRevision: master
     path: k8s/charts/observability
     helm:
       releaseName: observability

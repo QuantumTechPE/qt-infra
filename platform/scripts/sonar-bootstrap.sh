@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Configura SonarQube de forma idempotente:
 #   - reemplaza la contraseña por defecto admin/admin (guardada en Vault)
-#   - crea los proyectos qt-backend y qt-frontend (rama principal: main)
+#   - crea los proyectos qt-backend y qt-frontend (rama principal: master)
 #   - emite un token de análisis global para CI y lo guarda en Vault
 # -----------------------------------------------------------------------------
 source /scripts/lib.sh
@@ -40,7 +40,7 @@ for project in "qt-backend|QT Backend" "qt-frontend|QT Frontend"; do
   if [[ "$exists" == "0" ]]; then
     curl -fsS -u "$auth" -X POST "${SONAR}/api/projects/create" \
       --data-urlencode "project=${key}" --data-urlencode "name=${name}" \
-      --data-urlencode "mainBranch=main" --data-urlencode "visibility=private" >/dev/null
+      --data-urlencode "mainBranch=master" --data-urlencode "visibility=private" >/dev/null
     ok "Proyecto ${key} creado"
   fi
 done

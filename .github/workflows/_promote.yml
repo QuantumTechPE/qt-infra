@@ -1,7 +1,7 @@
 # Interno: promoción GitOps de una imagen a un ambiente (dev | qa | prod).
 #
 #   1. Verifica firma cosign: la imagen debe venir de qt-infra/_image.yml,
-#      construida desde la rama main de ESTE repositorio.
+#      construida desde la rama master de ESTE repositorio.
 #   2. Escribe el digest en qt-gitops/apps/<servicio>/<ambiente>/values.yaml
 #      (token de la GitHub App acotado solo al repo GitOps).
 #   3. Espera a que Argo CD del clúster quede Synced + Healthy.
@@ -92,11 +92,11 @@ jobs:
           cosign verify "${IMAGE}@${DIGEST}" \
             --certificate-identity-regexp "^https://github\.com/${INFRA_REPO}/\.github/workflows/_image\.yml@" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
-          # Procedencia SLSA: construida por ese workflow, desde main de ESTE repositorio
+          # Procedencia SLSA: construida por ese workflow, desde master de ESTE repositorio
           gh attestation verify "oci://${IMAGE}@${DIGEST}" \
             --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "${INFRA_REPO}/.github/workflows/_image.yml" \
-            --source-ref refs/heads/main > /dev/null
+            --source-ref refs/heads/master > /dev/null
           echo "🔏 Firma y procedencia válidas: ${IMAGE}@${DIGEST}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Token de la GitHub App (solo repo GitOps)

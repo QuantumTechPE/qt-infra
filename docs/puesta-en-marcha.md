@@ -178,7 +178,7 @@ El primer despliegue a dev ocurre con el primer merge, o lanzando el CD a mano (
 | Síntoma | Causa y solución |
 |---|---|
 | Jobs en "Waiting for a runner" | La plataforma está apagada, o la App no está en Vault: `.\qt.ps1 logs runner` |
-| `permission denied` de Vault en un job | El repo no llama a `qt-infra@main`, o `GITHUB_OWNER` no coincide en mayúsculas |
+| `permission denied` de Vault en un job | El repo no llama a `qt-infra@master`, o `GITHUB_OWNER` no coincide en mayúsculas |
 | Promoción: "no está dado de alta" | Falta mergear el PR de `apps/<servicio>` en `qt-gitops` |
 | Pod rechazado por Kyverno | La imagen no fue firmada por `qt-infra/_image.yml` (solo el CD publica imágenes desplegables) |
 | ExternalSecret en error | Revisa `kubectl get clustersecretstore vault` (red o certificado hacia Vault en el puerto 8200) |

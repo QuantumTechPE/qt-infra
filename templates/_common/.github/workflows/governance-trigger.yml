@@ -1,10 +1,10 @@
 # Disparador liviano del gobierno de merges (sin permisos ni secretos).
-# Su única función es activar governance.yml, que corre con el código de main.
+# Su única función es activar governance.yml, que corre con el código de master.
 name: Governance Trigger
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   pull_request_review:
     types: [submitted, edited, dismissed]

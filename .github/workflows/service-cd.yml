@@ -1,6 +1,6 @@
 # =============================================================================
 # CD corporativo de microservicios (lo llama .github/workflows/cd.yml de cada
-# repo de servicio en cada merge a main).
+# repo de servicio en cada merge a master).
 #
 #   release-please ─┐
 #   build ─ sonar ──┼─► imagen firmada ─► dev ──────────► qa ─────────► prod

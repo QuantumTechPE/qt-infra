@@ -1,4 +1,4 @@
-# CD: cada merge a main.
+# CD: cada merge a master.
 #   build + escaneos → imagen firmada (GHCR) → GitOps dev (automático)
 #   release (release-please) → GitOps qa → GitOps prod (aprobación de admins)
 # La lógica vive en __INFRA_REPO__; los despliegues los ejecuta Argo CD en cada clúster.
@@ -6,7 +6,7 @@ name: CD
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   cd:
     name: CD
-    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-cd.yml@main
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-cd.yml@master
     with:
       stack: __STACK__
     permissions:

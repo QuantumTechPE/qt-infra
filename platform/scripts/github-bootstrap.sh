@@ -108,7 +108,7 @@ if [[ "$status_options" != "Backlog,Ready,In Progress,In Review,Done" ]]; then
         {name: "Ready",       color: BLUE,   description: "Cumple la Definition of Ready"},
         {name: "In Progress", color: YELLOW, description: "Rama creada, en desarrollo"},
         {name: "In Review",   color: ORANGE, description: "PR abierto: CI + aprobación de admin"},
-        {name: "Done",        color: GREEN,  description: "Mergeado en main"}
+        {name: "Done",        color: GREEN,  description: "Mergeado en master"}
       ]}) { projectV2Field { ... on ProjectV2SingleSelectField { id } } }
     }' >/dev/null
   ok "Columnas: Backlog → Ready → In Progress → In Review → Done"
@@ -146,15 +146,15 @@ if grep -q "__GITHUB_OWNER__" .github/CODEOWNERS; then
   sed -i "s/__GITHUB_OWNER__/${OWNER}/g" .github/CODEOWNERS
 fi
 if ! gh api "repos/${OWNER}/${INFRA_REPO}/commits?per_page=1" >/dev/null 2>&1; then
-  info "Push inicial de ${INFRA_REPO} (antes de proteger main)"
-  [[ -d .git ]] || git init -b main >/dev/null
-  git checkout -B main >/dev/null 2>&1
+  info "Push inicial de ${INFRA_REPO} (antes de proteger master)"
+  [[ -d .git ]] || git init -b master >/dev/null
+  git checkout -B master >/dev/null 2>&1
   git add -A
   # Windows no guarda el bit de ejecución: se marca explícitamente en git
   git ls-files -z -- '*.sh' 'mvnw' '**/mvnw' | xargs -0 -r git update-index --chmod=+x
   git commit -m "chore: plataforma QT inicial" >/dev/null || true
   git remote get-url origin >/dev/null 2>&1 || git remote add origin "https://github.com/${OWNER}/${INFRA_REPO}.git"
-  git push -u origin main
+  git push -u origin master
 fi
 configure_repo "${OWNER}/${INFRA_REPO}" infra
 
@@ -165,11 +165,11 @@ if ! gh repo view "${OWNER}/${GITOPS_REPO}" >/dev/null 2>&1; then
   gh repo create "${OWNER}/${GITOPS_REPO}" --public --description "GitOps: estado deseado de los clústeres dev, qa y prod" >/dev/null
   (
     cd "platform/.generated/${GITOPS_REPO}"
-    git init -b main >/dev/null
+    git init -b master >/dev/null
     git add -A
     git commit -m "chore: estado inicial de los clústeres dev, qa y prod" >/dev/null
     git remote add origin "https://github.com/${OWNER}/${GITOPS_REPO}.git"
-    git push -u origin main
+    git push -u origin master
   )
   ok "Repo ${GITOPS_REPO} creado"
 fi

@@ -26,7 +26,7 @@ Convenciones (check "PR Lint / Convenciones"):
 ## Del merge a producción
 
 ```
-merge a main ─► CD: build · tests · Sonar · Semgrep · Trivy · imagen firmada (GHCR)
+merge a master ─► CD: build · tests · Sonar · Semgrep · Trivy · imagen firmada (GHCR)
               └► dev   (commit en qt-gitops/apps/<svc>/dev → Argo CD → espera Healthy)
 release-please abre "chore(release): vX.Y.Z"; al mergearlo (1 admin):
               └► qa    (mismo digest)
@@ -34,7 +34,7 @@ release-please abre "chore(release): vX.Y.Z"; al mergearlo (1 admin):
 ```
 
 - **Una sola imagen** (mismo `sha256`) recorre los tres ambientes.
-- Antes de promover, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde `main` de ese repo.
+- Antes de promover, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde `master` de ese repo.
 - En el clúster, **Kyverno** rechaza cualquier imagen no firmada por el pipeline.
 - Si Argo CD no queda *Synced + Healthy*, el pipeline **revierte el commit GitOps** y Argo CD vuelve a la versión anterior. Como el rollout usa `maxUnavailable: 0`, la versión fallida nunca recibe tráfico.
 
@@ -84,4 +84,4 @@ External Secrets lo sincroniza en ≤ 15 min, y cada clúster solo lee los secre
 
 ## Cambios en la plataforma
 
-Como los micros llaman a `qt-infra@main`, un cambio mergeado en `qt-infra` (pipeline, chart o políticas) aplica a **todos** desde su siguiente ejecución. El cambio del chart también llega a los clústeres: Argo CD re-renderiza cada servicio. Por eso `qt-infra` tiene su propio CI, que prueba charts, playbooks y plantillas antes del merge.
+Como los micros llaman a `qt-infra@master`, un cambio mergeado en `qt-infra` (pipeline, chart o políticas) aplica a **todos** desde su siguiente ejecución. El cambio del chart también llega a los clústeres: Argo CD re-renderiza cada servicio. Por eso `qt-infra` tiene su propio CI, que prueba charts, playbooks y plantillas antes del merge.

@@ -19,7 +19,7 @@ Este repo es la plataforma: workflows reutilizables, chart común, plantillas de
 | Secretos | CyberArk / Vault Enterprise | **HashiCorp Vault** (TLS, OIDC de GitHub, auth Kubernetes) |
 | Registro de artefactos | Artifactory | **GHCR** (imágenes) + **GitHub Releases** (binarios) |
 | Supply chain | Xray + firma propia | SHA-256 en cada etapa, **cosign**, **SLSA**, SBOM y **Kyverno** (solo imágenes firmadas) |
-| Gobierno | Bitbucket DC | Rulesets: `main` intocable, aprobación de un admin y auto-merge |
+| Gobierno | Bitbucket DC | Rulesets: `master` intocable, aprobación de un admin y auto-merge |
 | Observabilidad | Datadog / Dynatrace | **Grafana + Prometheus + Loki + Alloy** en cada clúster (dev, qa, prod), con dashboard y alertas de microservicios |
 | Alta de microservicios | Backstage / tickets manuales | Workflow **Nuevo microservicio** (backend o frontend) con aprobación de admins |
 
@@ -45,7 +45,7 @@ flowchart LR
     PROD["prod<br/>Argo CD"]
   end
   BOARD -- "historia → rama" --> SVC
-  SVC -- "uses: qt-infra/...@main" --> INFRA
+  SVC -- "uses: qt-infra/...@master" --> INFRA
   SVC -- "build · scan · firma" --> GHCR
   R -- "promoción: digest" --> GITOPS
   R --- V & S
@@ -54,7 +54,7 @@ flowchart LR
   GHCR -. "pull (Kyverno verifica firma)" .-> DEV & QA & PROD
 ```
 
-**Promoción:** merge a `main` → **dev**. Release (`vX.Y.Z`) → **qa**. El mismo digest pasa a **prod** con la aprobación de un admin. Si Argo CD no queda *Healthy*, el pipeline revierte el commit GitOps.
+**Promoción:** merge a `master` → **dev**. Release (`vX.Y.Z`) → **qa**. El mismo digest pasa a **prod** con la aprobación de un admin. Si Argo CD no queda *Healthy*, el pipeline revierte el commit GitOps.
 
 ## Estructura
 

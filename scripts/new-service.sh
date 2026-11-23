@@ -131,7 +131,7 @@ ok "Código generado desde templates/service-${stack}"
 # ------------------------------------------------------------------ 2. repo en GitHub
 (
   cd "$dest"
-  git init -q -b main
+  git init -q -b master
   git add -A
   # Windows no guarda el bit de ejecución: se marca explícitamente en git
   git ls-files -z -- '*.sh' 'mvnw' '**/mvnw' | xargs -0 -r git update-index --chmod=+x
@@ -139,8 +139,10 @@ ok "Código generado desde templates/service-${stack}"
   git commit -q -m "chore: alta del microservicio ${name} desde la plantilla ${type} [skip ci]"
 )
 gh repo create "${OWNER}/${name}" --public --description "$description" >/dev/null
-git -C "$dest" push -q "$(git_url "${OWNER}/${name}")" main
-ok "Repo https://github.com/${OWNER}/${name}"
+git -C "$dest" push -q "$(git_url "${OWNER}/${name}")" master
+# Rama principal de la organización: master (explícito, sin depender del primer push)
+gh repo edit "${OWNER}/${name}" --default-branch master >/dev/null
+ok "Repo https://github.com/${OWNER}/${name} (rama principal: master)"
 configure_repo "${OWNER}/${name}" service
 
 # ------------------------------------------------------------------ 3. Vault (secretos por ambiente)

@@ -3,7 +3,7 @@
 # Alta de un microservicio en la plataforma (modo local; en GitHub lo hace el
 # workflow "Nuevo microservicio"):
 #   - Vault: secret/apps/<servicio>/<dev|qa|prod> según deploy/vault/secrets.yaml
-#   - SonarQube: proyecto <servicio> (rama principal main)
+#   - SonarQube: proyecto <servicio> (rama principal master)
 #   service-register.sh <servicio> <quarkus|angular>
 # -----------------------------------------------------------------------------
 source /scripts/lib.sh
@@ -26,7 +26,7 @@ if [[ -n "$password" ]] && curl -fsS -o /dev/null "${SONAR}/api/system/status" 2
   if [[ "$exists" == "0" ]]; then
     curl -fsS -u "$auth" -X POST "${SONAR}/api/projects/create" \
       --data-urlencode "project=${service}" --data-urlencode "name=${service}" \
-      --data-urlencode "mainBranch=main" --data-urlencode "visibility=private" >/dev/null
+      --data-urlencode "mainBranch=master" --data-urlencode "visibility=private" >/dev/null
     ok "SonarQube: proyecto ${service} creado"
   else
     ok "SonarQube: proyecto ${service} ya existe"

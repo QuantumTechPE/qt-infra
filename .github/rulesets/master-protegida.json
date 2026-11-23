@@ -1,5 +1,5 @@
 {
-  "name": "main-protegida",
+  "name": "master-protegida",
   "target": "branch",
   "enforcement": "active",
   "bypass_actors": [],

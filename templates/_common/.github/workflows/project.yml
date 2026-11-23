@@ -1,5 +1,5 @@
 # Historia de usuario ↔ tablero de la organización ↔ rama/PR.
-# pull_request_target: corre con el código de main, nunca con el del PR.
+# pull_request_target: corre con el código de master, nunca con el del PR.
 name: Project Automation
 
 on:
@@ -19,7 +19,7 @@ jobs:
   project:
     name: Tablero
     if: vars.PROJECT_NUMBER != ''
-    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-project.yml@main
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-project.yml@master
     permissions:
       contents: read
       id-token: write

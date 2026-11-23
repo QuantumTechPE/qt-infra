@@ -9,14 +9,14 @@ spec:
   project: default
   sources:
     - repoURL: __GIT_BASE_URL__/__INFRA_REPO__.git
-      targetRevision: main
+      targetRevision: master
       path: k8s/charts/cluster-config
       helm:
         releaseName: cluster-config
         valueFiles:
           - $values/clusters/__ENV__/cluster-config.values.yaml
     - repoURL: __GIT_BASE_URL__/__GITOPS_REPO__.git
-      targetRevision: main
+      targetRevision: master
       ref: values
   destination:
     server: https://kubernetes.default.svc

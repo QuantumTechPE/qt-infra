@@ -1,13 +1,13 @@
 # CI de qt-infra (check requerido "CI / Gate"): valida todo lo que esta
-# plataforma entrega a los microservicios antes de que llegue a main.
+# plataforma entrega a los microservicios antes de que llegue a master.
 name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
