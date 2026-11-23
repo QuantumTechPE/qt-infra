@@ -183,7 +183,9 @@ $(ok "Organización configurada")
   GitOps:   https://github.com/${OWNER}/${GITOPS_REPO}
 
 Siguientes pasos:
-  1. Clústeres:     .\\qt.ps1 k8s-provision dev   y luego   .\\qt.ps1 k8s-bootstrap dev   (igual para qa y prod)
-  2. Microservicio: bash scripts/new-service.sh qt-backend quarkus
+  1. Clústeres:     .\\qt.ps1 k8s-provision dev (servidores) o .\\qt.ps1 k8s-local dev (esta PC);
+                    luego .\\qt.ps1 k8s-bootstrap dev   (igual para qa y prod)
+  2. Microservicio: issue "Nuevo microservicio" en qt-infra + etiqueta aprobado
+                    (o local: bash scripts/new-service.sh qt-backend backend)
   3. Manual (la API no lo expone): Tablero → Workflows → activa "Item closed" y "Pull request merged" (→ Done)
 EOF
