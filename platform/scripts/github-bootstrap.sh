@@ -34,7 +34,7 @@ INFRA_REPO="${INFRA_REPO:-qt-infra}"
 GITOPS_REPO="${GITOPS_REPO:-qt-gitops}"
 : "${GOVERNANCE_APP_ID:?Define GOVERNANCE_APP_ID (App ID numérico de la GitHub App) en platform/.env}"
 [[ "$GOVERNANCE_APP_ID" =~ ^[0-9]+$ ]] || die "GOVERNANCE_APP_ID debe ser numérico"
-ADMIN_APPROVALS_REQUIRED="${ADMIN_APPROVALS_REQUIRED:-2}"
+ADMIN_APPROVALS_REQUIRED="${ADMIN_APPROVALS_REQUIRED:-1}"
 [[ "$ADMIN_APPROVALS_REQUIRED" =~ ^[1-6]$ ]] || die "ADMIN_APPROVALS_REQUIRED debe ser 1..6"
 export ADMIN_APPROVALS_REQUIRED
 PROJECT_TITLE="${PROJECT_TITLE:-QT Delivery}"
@@ -51,7 +51,7 @@ ensure_team() {
   gh api "orgs/${OWNER}/teams/$1" >/dev/null 2>&1 ||
     { gh api -X POST "orgs/${OWNER}/teams" -f name="$1" -f description="$2" -f privacy=closed >/dev/null && ok "Team $1 creado"; }
 }
-ensure_team admins "Aprueban PRs (2 requeridos), releases y despliegues a prod"
+ensure_team admins "Aprueban PRs, releases y despliegues a prod"
 ensure_team developers "Desarrollo de microservicios"
 for pair in "admins:${ADMINS:-}" "developers:${DEVELOPERS:-}"; do
   team="${pair%%:*}"
@@ -107,7 +107,7 @@ if [[ "$status_options" != "Backlog,Ready,In Progress,In Review,Done" ]]; then
         {name: "Backlog",     color: GRAY,   description: "Historias por refinar"},
         {name: "Ready",       color: BLUE,   description: "Cumple la Definition of Ready"},
         {name: "In Progress", color: YELLOW, description: "Rama creada, en desarrollo"},
-        {name: "In Review",   color: ORANGE, description: "PR abierto: CI + 2 admins"},
+        {name: "In Review",   color: ORANGE, description: "PR abierto: CI + aprobación de admin"},
         {name: "Done",        color: GREEN,  description: "Mergeado en main"}
       ]}) { projectV2Field { ... on ProjectV2SingleSelectField { id } } }
     }' >/dev/null
@@ -133,7 +133,7 @@ set_org_var GITOPS_REPO "$GITOPS_REPO"
 set_org_var INFRA_REPO "$INFRA_REPO"
 set_org_var GOVERNANCE_APP_ID "$GOVERNANCE_APP_ID"
 set_org_var PROJECT_NUMBER "$PROJECT_NUMBER"
-set_org_var ADMIN_APPROVALS_REQUIRED "${ADMIN_APPROVALS_REQUIRED:-2}"
+set_org_var ADMIN_APPROVALS_REQUIRED "${ADMIN_APPROVALS_REQUIRED}"
 gh variable get DTRACK_ENABLED --org "$OWNER" >/dev/null 2>&1 || set_org_var DTRACK_ENABLED "false"
 ok "Variables de la organización (ningún secreto vive en GitHub: todo sale de Vault vía OIDC)"
 

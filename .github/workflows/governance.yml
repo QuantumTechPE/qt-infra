@@ -1,4 +1,4 @@
-# Gobierno de merges de qt-infra: 2 aprobaciones de admins → auto-merge.
+# Gobierno de merges de qt-infra: aprobación de un admin → auto-merge.
 name: Governance
 
 on:

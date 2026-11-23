@@ -2,7 +2,7 @@
 # microservicio nuevo nace con dependencias vigentes (los repos de micros traen
 # su propio dependabot.yml).
 # Los títulos usan Conventional Commits para que pasen el "PR Lint" y entren
-# al changelog de release-please. Igual requieren 2 aprobaciones de admins.
+# al changelog de release-please. Igual requieren la aprobación de un admin.
 version: 2
 updates:
   - package-ecosystem: maven

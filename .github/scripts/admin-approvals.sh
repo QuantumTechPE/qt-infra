@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Gobierno de merges: "2 admins aprueban → merge automático".
+# Gobierno de merges: "un admin aprueba → merge automático".
 #
 # Para un PR dado:
 #   1. Toma la última revisión de cada usuario (sin contar al autor).
@@ -11,14 +11,14 @@
 #      cuando además todos los checks requeridos estén en verde.
 #
 # Entradas: GH_TOKEN (token de la GitHub App), REPO (owner/repo), PR_NUMBER
-# Opcional: ADMIN_APPROVALS_REQUIRED (default 2)
+# Opcional: ADMIN_APPROVALS_REQUIRED (default 1)
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
 : "${GH_TOKEN:?GH_TOKEN (GitHub App) requerido}"
 : "${REPO:?REPO requerido}"
 : "${PR_NUMBER:?PR_NUMBER requerido}"
-REQUIRED="${ADMIN_APPROVALS_REQUIRED:-2}"
+REQUIRED="${ADMIN_APPROVALS_REQUIRED:-1}"
 CONTEXT="governance/admin-approvals"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 

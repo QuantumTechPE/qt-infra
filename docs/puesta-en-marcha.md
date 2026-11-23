@@ -115,7 +115,7 @@ gh auth login -s admin:org,project,workflow
 ADMINS="ana,luis" DEVELOPERS="pedro,maria" bash platform/scripts/github-bootstrap.sh
 ```
 
-> **Aprobaciones requeridas.** GitHub no deja que el autor apruebe su propio PR. Con 2 aprobaciones hacen falta al menos 2 admins además del autor. Si el equipo todavía es pequeño, pon `ADMIN_APPROVALS_REQUIRED=1` en `platform/.env` antes de ejecutar el bootstrap. Cuando se sume el equipo, súbelo a 2 y vuelve a ejecutarlo (es idempotente).
+> **Aprobaciones requeridas.** Basta **1 aprobación de un admin** (`ADMIN_APPROVALS_REQUIRED=1` en `platform/.env`). GitHub no deja que el autor apruebe su propio PR, así que hace falta al menos otro admin además del autor. Para exigir más, cambia el valor y vuelve a ejecutar el bootstrap (es idempotente).
 
 | Ámbito | Resultado |
 |---|---|
@@ -165,7 +165,7 @@ Resultado:
    Los pipelines ya vienen conectados a `qt-infra`.
 2. Repo protegido: rulesets, environments `dev`/`qa`/`prod` (prod con aprobación de admins), seguridad y labels.
 3. Vault: `secret/apps/<nombre>/{dev,qa,prod}`, con valores aleatorios distintos por ambiente para las claves `generate: true`.
-4. Un **PR en `qt-gitops`** con `apps/<nombre>/`. Cuando 2 admins lo aprueban, Argo CD de cada clúster empieza a gestionarlo.
+4. Un **PR en `qt-gitops`** con `apps/<nombre>/`. Cuando un admin lo aprueba, Argo CD de cada clúster empieza a gestionarlo.
 
 El primer despliegue a dev ocurre con el primer merge, o lanzando el CD a mano (**Actions → CD → Run workflow**).
 

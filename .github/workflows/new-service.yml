@@ -174,7 +174,7 @@ jobs:
           if [[ "$OUTCOME" == "success" ]]; then
             gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "✅ Microservicio creado: ${REPO_URL}
 
-          - Alta en GitOps (2 admins la aprueban): ${PR_URL}
+          - Alta en GitOps (un admin la aprueba): ${PR_URL}
           - Detalle: ${RUN_URL}"
             gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --reason completed
           else

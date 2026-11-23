@@ -23,7 +23,7 @@ apply_ruleset() {
   name="$(sed -n 's/^  "name": *"\([^"]*\)".*/\1/p' "$file" | head -n1)"
   rendered="$(sed -e "s/__GOVERNANCE_APP_ID__/${GOVERNANCE_APP_ID}/g" \
     -e "s/__ADMINS_TEAM_ID__/$(admins_team_id)/g" \
-    -e "s/__REQUIRED_APPROVALS__/${ADMIN_APPROVALS_REQUIRED:-2}/g" "$file")"
+    -e "s/__REQUIRED_APPROVALS__/${ADMIN_APPROVALS_REQUIRED:-1}/g" "$file")"
   id="$(gh api "repos/${repo}/rulesets" --jq ".[] | select(.name == \"${name}\") | .id")"
   if [[ -n "$id" ]]; then
     printf '%s' "$rendered" | gh api -X PUT "repos/${repo}/rulesets/${id}" --input - >/dev/null
@@ -113,14 +113,14 @@ JSON
   case "$kind" in
     gitops)
       apply_ruleset "$repo" .github/rulesets/main-protegida-gitops.json
-      ok "  ruleset main-protegida-gitops (PR + 2 admins; la GitHub App escribe las promociones)"
+      ok "  ruleset main-protegida-gitops (PR + ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) de admin; la GitHub App escribe las promociones)"
       ;;
     *)
       apply_ruleset "$repo" .github/rulesets/main-protegida.json
       apply_ruleset "$repo" .github/rulesets/tags-release.json
       ok "  rulesets main-protegida + tags-release-inmutables"
       if apply_ruleset "$repo" .github/rulesets/main-revisores-admins.json 2>/dev/null; then
-        ok "  ruleset main-revisores-admins (GitHub exige 2 aprobaciones del team admins)"
+        ok "  ruleset main-revisores-admins (GitHub exige ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) del team admins)"
       else
         warn "  'required reviewers' por team no disponible: lo cubre el check governance/admin-approvals"
       fi

@@ -198,7 +198,7 @@ ok "PR de alta: ${pr_url}"
   echo "| Repo | https://github.com/${OWNER}/${name} |"
   echo "| Tipo | ${type} (${stack}) |"
   echo "| Ruta pública | \`${api_path}\` |"
-  echo "| Alta en GitOps (requiere 2 admins) | ${pr_url} |"
+  echo "| Alta en GitOps (requiere 1 admin) | ${pr_url} |"
 } >>"$summary"
 
 cat <<EOF
@@ -210,7 +210,7 @@ $(ok "Microservicio ${name} creado")
   Ambientes:  dev (cada merge) → qa (cada release) → prod (release + aprobación de admins)
 
 Siguientes pasos:
-  1. 2 admins aprueban el PR de alta en ${GITOPS_REPO} (se mergea solo).
+  1. Un admin aprueba el PR de alta en ${GITOPS_REPO} (se mergea solo).
   2. Clona el repo, crea una historia en el tablero, asígnatela y trabaja en la rama que se crea.
      Al mergear el primer PR, el CD despliega en dev.
 EOF

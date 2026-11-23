@@ -4,7 +4,7 @@
 
 | Repo | Qué contiene | Quién lo cambia |
 |---|---|---|
-| `qt-infra` | Workflows reutilizables, chart común, plantillas, aprovisionamiento | Equipo de plataforma (PR + 2 admins) |
+| `qt-infra` | Workflows reutilizables, chart común, plantillas, aprovisionamiento | Equipo de plataforma (PR + 1 admin) |
 | `qt-<servicio>` | Código + `deploy/` (properties, recursos, HPA, secretos por ambiente) + CI/CD "delgado" que llama a `qt-infra` | Equipo del servicio |
 | `qt-gitops` | Snapshot de lo que corre en cada ambiente + add-ons de cada clúster | El pipeline (promociones desde `deploy/`) y personas (add-ons, por PR) |
 
@@ -16,7 +16,7 @@
 | El PO valida la Definition of Ready | (manual) | **Ready** |
 | Un dev se **asigna** la historia | Se crea `feature/<n>-<slug>` vinculada al issue | **In Progress** |
 | PR abierto con `Closes #<n>` | CI completo | **In Review** |
-| 2 admins aprueban y el CI está en verde | **Auto-merge (squash)** | **Done** |
+| Un admin aprueba y el CI está en verde | **Auto-merge (squash)** | **Done** |
 
 Convenciones (check "PR Lint / Convenciones"):
 - Título en Conventional Commits: `feat:` → minor, `fix:` → patch, `feat!:` → major.
@@ -28,7 +28,7 @@ Convenciones (check "PR Lint / Convenciones"):
 ```
 merge a main ─► CD: build · tests · Sonar · Semgrep · Trivy · imagen firmada (GHCR)
               └► dev   (commit en qt-gitops/apps/<svc>/dev → Argo CD → espera Healthy)
-release-please abre "chore(release): vX.Y.Z"; al mergearlo (2 admins):
+release-please abre "chore(release): vX.Y.Z"; al mergearlo (1 admin):
               └► qa    (mismo digest)
               └► prod  (mismo digest, tras aprobación del team admins en el environment "prod")
 ```
@@ -42,7 +42,7 @@ release-please abre "chore(release): vX.Y.Z"; al mergearlo (2 admins):
 
 1. **Actions → Nuevo microservicio → Run workflow** (nombre, `backend` o `frontend`, ruta pública), o un issue **🧩 Nuevo microservicio** en `qt-infra` al que se le agrega el label `aprobado`.
 2. Un admin aprueba el environment `provisioning`.
-3. El workflow crea el repo con el esqueleto y la carpeta `deploy/`, lo protege, crea sus secretos por ambiente en Vault y abre el PR de alta en `qt-gitops` (2 admins).
+3. El workflow crea el repo con el esqueleto y la carpeta `deploy/`, lo protege, crea sus secretos por ambiente en Vault y abre el PR de alta en `qt-gitops` (1 admin).
 
 ## Configuración por ambiente: carpeta `deploy/` del microservicio
 
