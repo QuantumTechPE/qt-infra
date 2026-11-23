@@ -1,5 +1,5 @@
 {
-  "name": "main-protegida-gitops",
+  "name": "master-protegida-gitops",
   "target": "branch",
   "enforcement": "active",
   "bypass_actors": [

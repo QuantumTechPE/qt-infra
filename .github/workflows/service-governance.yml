@@ -1,6 +1,6 @@
 # Gobierno de merges: aprobación de un admin → auto-merge.
 # Lo llama governance.yml (workflow_run) de cada repo: corre siempre con el
-# código de main, así que un PR no puede alterar esta lógica. Publica el status
+# código de master, así que un PR no puede alterar esta lógica. Publica el status
 # requerido "governance/admin-approvals" firmado por la GitHub App.
 name: service-governance
 

@@ -1,6 +1,6 @@
 # =============================================================================
 # CI corporativo de microservicios (lo llama .github/workflows/ci.yml de cada
-# repo de servicio). Check requerido por el ruleset de main: "CI / Gate".
+# repo de servicio). Check requerido por el ruleset de master: "CI / Gate".
 #
 #   build + tests ─┬─ SonarQube (Quality Gate)
 #                  └─ imagen + Trivy

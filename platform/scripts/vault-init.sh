@@ -93,26 +93,26 @@ write_role gha-ci "ci-read" string \
 write_role gha-automation "automation" string \
   "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" '{
       repository_owner: $o,
-      ref: "refs/heads/main",
+      ref: "refs/heads/master",
       job_workflow_ref: [
-        "\($w)/service-governance.yml@refs/heads/main",
-        "\($w)/service-project.yml@refs/heads/main",
-        "\($w)/service-cd.yml@refs/heads/main"
+        "\($w)/service-governance.yml@refs/heads/master",
+        "\($w)/service-project.yml@refs/heads/master",
+        "\($w)/service-cd.yml@refs/heads/master"
       ]}')"
 
 # Workflow "Nuevo microservicio" (aprobado por admins en el environment provisioning)
 write_role gha-provision "automation,provision" string \
   "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" '{
       repository_owner: $o,
-      ref: "refs/heads/main",
+      ref: "refs/heads/master",
       environment: "provisioning",
-      job_workflow_ref: "\($w)/new-service.yml@refs/heads/main"}')"
+      job_workflow_ref: "\($w)/new-service.yml@refs/heads/master"}')"
 
 for env in "${ENVIRONMENTS[@]}"; do
   write_role "gha-promote-${env}" "promote-${env}" glob \
     "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" --arg e "$env" '{
         repository_owner: $o,
-        ref: "refs/heads/main",
+        ref: "refs/heads/master",
         environment: $e,
         job_workflow_ref: "\($w)/_promote.yml@*"}')"
 done

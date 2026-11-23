@@ -37,9 +37,9 @@ git config user.email "qt-platform[bot]@users.noreply.github.com"
 push_with_retry() {
   local attempt
   for attempt in 1 2 3 4 5; do
-    if git push --quiet origin HEAD:main; then return 0; fi
-    echo "Push rechazado (intento ${attempt}); rebase sobre main y reintento..."
-    git pull --quiet --rebase origin main
+    if git push --quiet origin HEAD:master; then return 0; fi
+    echo "Push rechazado (intento ${attempt}); rebase sobre master y reintento..."
+    git pull --quiet --rebase origin master
   done
   return 1
 }
@@ -79,7 +79,7 @@ case "$action" in
 
   revert)
     sha="${2:?sha a revertir}"
-    git fetch --quiet --depth 100 origin main
+    git fetch --quiet --depth 100 origin master
     git revert --no-edit "$sha"
     push_with_retry
     echo "↩ Rollback GitOps: revertido ${sha} en ${ENVIRONMENT}" | tee -a "$summary"

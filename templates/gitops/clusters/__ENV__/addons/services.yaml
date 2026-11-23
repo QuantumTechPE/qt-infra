@@ -13,7 +13,7 @@ spec:
   generators:
     - git:
         repoURL: __GIT_BASE_URL__/__GITOPS_REPO__.git
-        revision: main
+        revision: master
         directories:
           - path: apps/*/__ENV__
   template:
@@ -26,7 +26,7 @@ spec:
       project: services
       sources:
         - repoURL: __GIT_BASE_URL__/__INFRA_REPO__.git
-          targetRevision: main
+          targetRevision: master
           path: k8s/charts/qt-service
           helm:
             releaseName: '{{ index .path.segments 1 }}'
@@ -39,7 +39,7 @@ spec:
               - name: global.ingressDomain
                 value: __INGRESS_DOMAIN__
         - repoURL: __GIT_BASE_URL__/__GITOPS_REPO__.git
-          targetRevision: main
+          targetRevision: master
           ref: values
       destination:
         server: https://kubernetes.default.svc

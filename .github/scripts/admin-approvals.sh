@@ -6,7 +6,7 @@
 #   1. Toma la última revisión de cada usuario (sin contar al autor).
 #   2. Cuenta los APPROVED de usuarios con rol `admin` en el repositorio.
 #   3. Publica el commit status `governance/admin-approvals` (requerido por el
-#      ruleset de main y firmado por la GitHub App: nadie más puede falsearlo).
+#      ruleset de master y firmado por la GitHub App: nadie más puede falsearlo).
 #   4. Si llega al mínimo, habilita auto-merge (squash). GitHub mergea solo
 #      cuando además todos los checks requeridos estén en verde.
 #

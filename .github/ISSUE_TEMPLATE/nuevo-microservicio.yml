@@ -11,7 +11,7 @@ body:
         El repo nace con:
         - esqueleto vacío con su estructura de capas;
         - `deploy/` con properties/ConfigMaps, plan de recursos, HPA y secretos de Vault por ambiente (dev, qa, prod);
-        - pipelines CI/CD, protección de `main` y alta en GitOps.
+        - pipelines CI/CD, protección de `master` y alta en GitOps.
 
   - type: input
     id: nombre

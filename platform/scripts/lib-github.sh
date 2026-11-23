@@ -18,13 +18,15 @@ admins_team_id() {
 }
 
 # apply_ruleset <owner/repo> <archivo.json>   (crea o actualiza por nombre)
+# Un ruleset con el nombre anterior "main-*" se actualiza en su lugar (queda
+# renombrado a "master-*") en vez de duplicarse.
 apply_ruleset() {
   local repo="$1" file="$2" name rendered id
   name="$(sed -n 's/^  "name": *"\([^"]*\)".*/\1/p' "$file" | head -n1)"
   rendered="$(sed -e "s/__GOVERNANCE_APP_ID__/${GOVERNANCE_APP_ID}/g" \
     -e "s/__ADMINS_TEAM_ID__/$(admins_team_id)/g" \
     -e "s/__REQUIRED_APPROVALS__/${ADMIN_APPROVALS_REQUIRED:-1}/g" "$file")"
-  id="$(gh api "repos/${repo}/rulesets" --jq ".[] | select(.name == \"${name}\") | .id")"
+  id="$(gh api "repos/${repo}/rulesets" --jq ".[] | select(.name == \"${name}\" or .name == \"${name/#master-/main-}\") | .id" | head -n1)"
   if [[ -n "$id" ]]; then
     printf '%s' "$rendered" | gh api -X PUT "repos/${repo}/rulesets/${id}" --input - >/dev/null
   else
@@ -112,15 +114,15 @@ JSON
 
   case "$kind" in
     gitops)
-      apply_ruleset "$repo" .github/rulesets/main-protegida-gitops.json
-      ok "  ruleset main-protegida-gitops (PR + ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) de admin; la GitHub App escribe las promociones)"
+      apply_ruleset "$repo" .github/rulesets/master-protegida-gitops.json
+      ok "  ruleset master-protegida-gitops (PR + ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) de admin; la GitHub App escribe las promociones)"
       ;;
     *)
-      apply_ruleset "$repo" .github/rulesets/main-protegida.json
+      apply_ruleset "$repo" .github/rulesets/master-protegida.json
       apply_ruleset "$repo" .github/rulesets/tags-release.json
-      ok "  rulesets main-protegida + tags-release-inmutables"
-      if apply_ruleset "$repo" .github/rulesets/main-revisores-admins.json 2>/dev/null; then
-        ok "  ruleset main-revisores-admins (GitHub exige ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) del team admins)"
+      ok "  rulesets master-protegida + tags-release-inmutables"
+      if apply_ruleset "$repo" .github/rulesets/master-revisores-admins.json 2>/dev/null; then
+        ok "  ruleset master-revisores-admins (GitHub exige ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) del team admins)"
       else
         warn "  'required reviewers' por team no disponible: lo cubre el check governance/admin-approvals"
       fi

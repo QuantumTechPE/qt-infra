@@ -140,7 +140,7 @@ spec:
   project: default
   source:
     repoURL: ${GIT_BASE_URL}/${GITOPS_REPO}.git
-    targetRevision: main
+    targetRevision: master
     path: clusters/${env}/addons
   destination:
     server: https://kubernetes.default.svc

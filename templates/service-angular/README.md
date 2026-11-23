@@ -23,7 +23,7 @@ npm run build          # dist/app/browser
 
 | Ambiente | Cuándo | Recursos / HPA | Configuración de runtime |
 |---|---|---|---|
-| dev | cada merge a `main` | `deploy/values-dev.yaml` | `deploy/config/dev/config.json` |
+| dev | cada merge a `master` | `deploy/values-dev.yaml` | `deploy/config/dev/config.json` |
 | qa | cada release `vX.Y.Z` | `deploy/values-qa.yaml` | `deploy/config/qa/config.json` |
 | prod | mismo release + aprobación de admins | `deploy/values-prod.yaml` | `deploy/config/prod/config.json` |
 

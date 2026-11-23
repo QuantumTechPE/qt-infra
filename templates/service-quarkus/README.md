@@ -27,7 +27,7 @@ deploy/                                      cómo corre en dev, qa y prod (ver 
 
 | Ambiente | Cuándo | Recursos / HPA | Properties | Secretos (Vault) |
 |---|---|---|---|---|
-| dev | cada merge a `main` | `deploy/values-dev.yaml` | `deploy/config/dev/` | `secret/apps/qt-template-quarkus/dev` |
+| dev | cada merge a `master` | `deploy/values-dev.yaml` | `deploy/config/dev/` | `secret/apps/qt-template-quarkus/dev` |
 | qa | cada release `vX.Y.Z` | `deploy/values-qa.yaml` | `deploy/config/qa/` | `secret/apps/qt-template-quarkus/qa` |
 | prod | mismo release + aprobación de admins | `deploy/values-prod.yaml` | `deploy/config/prod/` | `secret/apps/qt-template-quarkus/prod` |
 

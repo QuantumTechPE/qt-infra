@@ -3,7 +3,7 @@ name: PR Lint
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     types: [opened, edited, reopened, synchronize]
 
 permissions:
@@ -12,4 +12,4 @@ permissions:
 jobs:
   pr-lint:
     name: PR Lint
-    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-pr-lint.yml@main
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-pr-lint.yml@master
