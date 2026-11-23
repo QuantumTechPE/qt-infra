@@ -1,4 +1,4 @@
-# Gobierno de merges: 2 aprobaciones de admins → auto-merge.
+# Gobierno de merges: aprobación de un admin → auto-merge.
 # Corre con el código de main (workflow_run); publica el status requerido
 # "governance/admin-approvals" con la GitHub App de plataforma.
 name: Governance

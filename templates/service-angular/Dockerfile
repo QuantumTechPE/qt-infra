@@ -8,7 +8,14 @@
 # Build local:
 #   npm ci && npm run build && docker build -t qt-template-angular .
 ####
-FROM nginxinc/nginx-unprivileged:1.30-alpine
+# Rama mainline: nginx la recomienda para uso general y es la que recibe los
+# fixes de seguridad primero.
+FROM nginxinc/nginx-unprivileged:1.31-alpine
+
+# Parches del SO publicados después de la imagen base: el quality gate de Trivy
+# bloquea HIGH/CRITICAL que ya tienen corrección.
+USER root
+RUN apk upgrade --no-cache
 
 # Config y contenido propiedad de root (solo lectura para el proceso)
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf

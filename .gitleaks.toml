@@ -15,3 +15,10 @@ regexes = [
   '''test-only-api-key''',
   '''dev-only-api-key''',
 ]
+
+[[allowlists]]
+description = "Credencial POR DEFECTO y pública de SonarQube: el bootstrap la detecta y la reemplaza por una aleatoria guardada en Vault"
+condition = "AND"
+regexTarget = "line"
+paths = ['''^platform/scripts/sonar-bootstrap\.sh$''']
+regexes = ['''curl .*-u admin:admin ''']
