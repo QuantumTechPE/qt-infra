@@ -1,0 +1,13 @@
+{{- if and (include "qt-service.enabled" .) .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "qt-service.name" . }}
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "qt-service.selectorLabels" . | nindent 6 }}
+{{- end }}

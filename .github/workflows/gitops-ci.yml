@@ -1,0 +1,52 @@
+# CI del repo GitOps: cada cambio debe renderizar con los charts de qt-infra y
+# producir Kubernetes válido. Check requerido: "CI / Gate".
+name: gitops-ci
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Render y validación
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Charts y scripts de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: |
+            .github/scripts
+            k8s/charts
+          persist-credentials: false
+
+      - name: Instalar helm y kubeconform (verificados)
+        run: bash .qt-infra/.github/scripts/install-tools.sh helm kubeconform
+
+      - name: Renderizar y validar
+        env:
+          CHART_DIR: .qt-infra/k8s/charts
+        run: bash .qt-infra/.github/scripts/gitops-validate.sh
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Resultado
+        env:
+          RESULT: ${{ needs.validate.result }}
+        run: |
+          [[ "$RESULT" == "success" ]] || { echo "::error::Validación GitOps: $RESULT"; exit 1; }
+          echo "✅ GitOps válido"

@@ -1,0 +1,19 @@
+# Configuración de actionlint (linter de workflows de GitHub Actions).
+self-hosted-runner:
+  labels:
+    - qt-platform
+
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      # Sintaxis "$/" (workflow reutilizable del mismo repo y commit) y contexto
+      # job.workflow_* documentados por GitHub, aún no soportados por actionlint.
+      - 'reusable workflow call "\$/\.github/workflows/.+" at "uses" is not following the format'
+      - 'property "workflow_(repository|sha|ref|file_path)" is not defined in object type'
+      # create-github-app-token v3 usa client-id (app-id quedó obsoleto); el
+      # catálogo interno de actionlint todavía tiene las entradas de v1.
+      - 'missing input "app-id" which is required by action "actions/create-github-app-token@v3"'
+      - 'input "client-id" is not defined in action "actions/create-github-app-token@v3"'
+      # Acción compuesta de qt-infra descargada en tiempo de ejecución (.qt-infra/)
+      - 'could not read action metadata .*\.qt-infra'
+      - 'file "\./\.qt-infra/'

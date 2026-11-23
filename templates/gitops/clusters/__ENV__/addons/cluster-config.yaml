@@ -1,0 +1,39 @@
+# Configuración de plataforma del clúster: ClusterSecretStore (Vault) y
+# política de imágenes firmadas. Chart en qt-infra, valores en este repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-config
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: __GIT_BASE_URL__/__INFRA_REPO__.git
+      targetRevision: main
+      path: k8s/charts/cluster-config
+      helm:
+        releaseName: cluster-config
+        valueFiles:
+          - $values/clusters/__ENV__/cluster-config.values.yaml
+    - repoURL: __GIT_BASE_URL__/__GITOPS_REPO__.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Los CRDs llegan con external-secrets y kyverno: se reintenta hasta que existan.
+      - SkipDryRunOnMissingResource=true
+      - ServerSideApply=true
+    retry:
+      # Reintentos ilimitados: en un clúster nuevo los webhooks de External Secrets/Kyverno
+      # tardan en estar listos; Argo CD no reintenta solo una revisión fallida.
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

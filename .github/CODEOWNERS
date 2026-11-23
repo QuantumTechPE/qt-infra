@@ -1,0 +1,13 @@
+# Code owners: el team `admins` revisa TODO cambio a qt-infra.
+# `QuantumTechPE` lo reemplaza platform/scripts/github-bootstrap.sh por tu organización.
+#
+# qt-infra define cómo se construye, protege y despliega cada microservicio:
+# sus cambios afectan a toda la organización.
+
+*                     @QuantumTechPE/admins
+
+/.github/             @QuantumTechPE/admins
+/k8s/                 @QuantumTechPE/admins
+/platform/            @QuantumTechPE/admins
+/templates/           @QuantumTechPE/admins
+/scripts/             @QuantumTechPE/admins

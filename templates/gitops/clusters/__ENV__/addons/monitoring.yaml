@@ -1,0 +1,95 @@
+# Observabilidad (__ENV__): Prometheus + Alertmanager + Grafana + node-exporter + kube-state-metrics.
+# Grafana: http://grafana.__INGRESS_DOMAIN__ (admin en Vault: secret/platform/observability/__ENV__)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 93.9.0
+    helm:
+      releaseName: monitoring
+      valuesObject:
+        crds:
+          enabled: true
+        # k3s embebe estos componentes: no exponen métricas por separado
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        kube-state-metrics:
+          # Etiquetas usadas por el dashboard y las alertas de la plataforma
+          metricLabelsAllowlist:
+            - deployments=[app.kubernetes.io/part-of]
+            - namespaces=[qt.platform/managed]
+        prometheus:
+          prometheusSpec:
+            retention: __PROM_RETENTION__
+            externalLabels:
+              environment: __ENV__
+            # Recoge TODOS los ServiceMonitor/PrometheusRule del clúster (los de cada microservicio)
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  resources:
+                    requests:
+                      storage: __PROM_STORAGE__
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts:
+              - grafana.__INGRESS_DOMAIN__
+          defaultDashboardsTimezone: browser
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              searchNamespace: ALL
+              folderAnnotation: grafana_folder
+              provider:
+                foldersFromFilesStructure: true
+          additionalDataSources:
+            - name: Loki
+              uid: loki
+              type: loki
+              access: proxy
+              url: http://loki.monitoring.svc:3100
+          grafana.ini:
+            analytics:
+              reporting_enabled: false
+              check_for_updates: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

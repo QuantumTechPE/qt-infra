@@ -1,0 +1,18 @@
+{{- if .Values.dashboards.enabled }}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+---
+# Dashboard provisionado en Grafana por el sidecar (label grafana_dashboard).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-{{ base $path | trimSuffix ".json" }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: qt-platform
+  annotations:
+    grafana_folder: {{ $.Values.dashboards.folder | quote }}
+data:
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+{{- end }}
+{{- end }}

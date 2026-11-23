@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "bump-minor-pre-major": true,
+  "pull-request-title-pattern": "chore(release): v${version}",
+  "changelog-sections": [
+    { "type": "feat", "section": "Funcionalidades" },
+    { "type": "fix", "section": "Correcciones" },
+    { "type": "perf", "section": "Rendimiento" },
+    { "type": "security", "section": "Seguridad" },
+    { "type": "refactor", "section": "Refactorizaciones" },
+    { "type": "docs", "section": "Documentación", "hidden": true },
+    { "type": "build", "section": "Build y dependencias", "hidden": true },
+    { "type": "ci", "section": "CI/CD", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "chore", "section": "Mantenimiento", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "package-name": "qt-template-angular",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [{ "type": "json", "path": "package.json", "jsonpath": "$.version" }]
+    }
+  }
+}

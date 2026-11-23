@@ -1,0 +1,37 @@
+# Convenciones del PR (check requerido "PR Lint / Convenciones"):
+# título Conventional Commits, rama <tipo>/<issue>-<slug> y "Closes #N".
+name: service-pr-lint
+
+on:
+  workflow_call:
+    inputs:
+      require-issue:
+        description: Exigir rama con n° de issue y "Closes #N" (false en qt-gitops)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Convenciones
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Validar título, rama y vínculo a la historia
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REQUIRE_ISSUE: ${{ inputs.require-issue }}
+        run: bash .qt-infra/.github/scripts/pr-lint.sh

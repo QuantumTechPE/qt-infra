@@ -1,0 +1,136 @@
+# Interno: build + tests de un microservicio según su stack.
+# Produce el artefacto inmutable `<prefijo>-dist` (dist.tar.gz + SHA-256) que
+# luego se empaqueta en la imagen sin recompilar.
+name: _build
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: quarkus | angular
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+      artifact-prefix:
+        type: string
+        default: app
+
+permissions:
+  contents: read
+
+jobs:
+  quarkus:
+    name: Build y tests (Quarkus)
+    if: inputs.stack == 'quarkus'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: ${{ inputs.working-directory }}/pom.xml
+
+      # mvnw valida el SHA-256 de la distribución de Maven y --strict-checksums
+      # falla si una dependencia descargada no coincide con su checksum publicado.
+      - name: Compilar, testear y empaquetar
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp --strict-checksums verify
+
+      - name: Empaquetar artefacto y calcular SHA-256
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.qt-dist"
+          tar -C target -czf "$GITHUB_WORKSPACE/.qt-dist/dist.tar.gz" quarkus-app
+          cd "$GITHUB_WORKSPACE/.qt-dist" && sha256sum dist.tar.gz > dist.tar.gz.sha256
+          { echo '### Artefacto'; echo '```'; cat dist.tar.gz.sha256; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-prefix }}-dist
+          path: |
+            .qt-dist/dist.tar.gz
+            .qt-dist/dist.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publicar reportes (cobertura y tests)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-prefix }}-reports
+          path: |
+            ${{ inputs.working-directory }}/target/jacoco-report/jacoco.xml
+            ${{ inputs.working-directory }}/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+  angular:
+    name: Build y tests (Angular)
+    if: inputs.stack == 'angular'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ${{ inputs.working-directory }}/.nvmrc
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      # npm ci verifica el hash sha512 de cada paquete contra el lockfile.
+      - name: Instalar dependencias
+        run: npm ci --no-fund --no-audit
+
+      - name: Verificar firmas y procedencia de paquetes npm
+        run: npm audit signatures
+
+      - name: Formato
+        run: npm run format:check
+
+      - name: Tests con cobertura
+        run: npm run test:ci
+
+      - name: Build de producción
+        run: npm run build
+
+      - name: Empaquetar artefacto y calcular SHA-256
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.qt-dist"
+          tar -C dist -czf "$GITHUB_WORKSPACE/.qt-dist/dist.tar.gz" app
+          cd "$GITHUB_WORKSPACE/.qt-dist" && sha256sum dist.tar.gz > dist.tar.gz.sha256
+          { echo '### Artefacto'; echo '```'; cat dist.tar.gz.sha256; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-prefix }}-dist
+          path: |
+            .qt-dist/dist.tar.gz
+            .qt-dist/dist.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publicar cobertura
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-prefix }}-reports
+          path: ${{ inputs.working-directory }}/coverage/*/lcov.info
+          if-no-files-found: warn
+          retention-days: 7

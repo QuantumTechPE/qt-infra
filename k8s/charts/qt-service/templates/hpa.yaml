@@ -1,0 +1,34 @@
+{{- if and (include "qt-service.enabled" .) .Values.autoscaling.enabled }}
+{{- $a := .Values.autoscaling }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "qt-service.name" . }}
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "qt-service.name" . }}
+  minReplicas: {{ $a.minReplicas }}
+  maxReplicas: {{ $a.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $a.targetCPUUtilizationPercentage }}
+    {{- if gt (int $a.targetMemoryUtilizationPercentage) 0 }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $a.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ $a.scaleDownStabilizationSeconds }}
+{{- end }}

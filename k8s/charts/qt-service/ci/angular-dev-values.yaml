@@ -1,0 +1,23 @@
+# Caso de prueba del CI de qt-infra: frontend Angular en dev (sin secretos,
+# config.json de runtime montado como ConfigMap).
+nameOverride: qt-frontend
+environment: dev
+global:
+  ingressDomain: 10.0.10.11.nip.io
+image:
+  repository: ghcr.io/acme/qt-frontend
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000002
+  tag: sha-abc1234
+probes:
+  liveness:
+    path: /healthz
+  readiness:
+    path: /healthz
+ingress:
+  subdomain: qt
+  path: /
+configFiles:
+  mountPath: /usr/share/nginx/html/runtime
+  files:
+    config.json: |
+      { "appName": "qt-frontend", "environment": "dev", "apiBaseUrl": "/api" }

@@ -1,0 +1,17 @@
+{{- if and (include "qt-service.enabled" .) (include "qt-service.hasConfigFiles" .) }}
+# Archivos de configuración del ambiente (deploy/config/<env>/ del repo del servicio),
+# montados en {{ .Values.configFiles.mountPath }}.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qt-service.name" . }}-files
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  {{- range $name, $content := .Values.configFiles.files }}
+  {{ $name }}: |-
+    {{- $content | nindent 4 }}
+  {{- end }}
+{{- end }}

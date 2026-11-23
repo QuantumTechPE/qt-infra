@@ -1,0 +1,4 @@
+# Todo cambio humano a GitOps lo revisan los admins.
+# Las promociones del pipeline las escribe la GitHub App (bypass del ruleset),
+# y la de prod solo ocurre tras la aprobación del environment "prod".
+*            @__GITHUB_OWNER__/admins

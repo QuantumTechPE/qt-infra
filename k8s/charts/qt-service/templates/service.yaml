@@ -1,0 +1,17 @@
+{{- if include "qt-service.enabled" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qt-service.name" . }}
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "qt-service.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+{{- end }}

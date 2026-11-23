@@ -1,0 +1,17 @@
+# Clúster __ENV__: valores del chart qt-infra/k8s/charts/cluster-config.
+environment: __ENV__
+
+# Dominio del Ingress: los micros responden en qt.__INGRESS_DOMAIN__
+# y Argo CD en argocd.__INGRESS_DOMAIN__
+ingressDomain: __INGRESS_DOMAIN__
+
+vault:
+  server: __VAULT_SERVER__
+  caBundle: __VAULT_CA_B64__
+  mountPath: k8s-__ENV__
+
+imagePolicy:
+  enabled: true
+  action: __IMAGE_POLICY_ACTION__
+  imageGlob: ghcr.io/__GITHUB_OWNER_LC__/*
+  subjectRegExp: ^https://github\.com/__GITHUB_OWNER__/__INFRA_REPO__/\.github/workflows/_image\.yml@.+$

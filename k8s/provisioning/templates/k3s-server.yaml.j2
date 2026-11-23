@@ -1,0 +1,20 @@
+# Generado por qt-infra (k8s/provisioning). No editar a mano.
+token: "{{ k3s_token }}"
+write-kubeconfig-mode: "0600"
+secrets-encryption: true
+tls-san:
+  - "{{ ansible_host }}"
+  - "{{ k3s_api_endpoint }}"
+{% for san in k3s_tls_san_extra %}
+  - "{{ san }}"
+{% endfor %}
+node-label:
+  - "qt.platform/environment={{ cluster_env }}"
+{% if groups['k3s_server'] | length > 1 %}
+{% if inventory_hostname == groups['k3s_server'][0] %}
+# Primer control-plane: inicializa etcd embebido (HA)
+cluster-init: true
+{% else %}
+server: "https://{{ k3s_api_endpoint }}:6443"
+{% endif %}
+{% endif %}

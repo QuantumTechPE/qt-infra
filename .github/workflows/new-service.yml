@@ -1,0 +1,182 @@
+# =============================================================================
+# Nuevo microservicio: crea un repo backend (Quarkus) o frontend (Angular) con
+# todo lo corporativo (esqueleto, deploy/ por ambiente, pipelines, protección,
+# secretos en Vault y alta en GitOps).
+#
+# Dos formas de pedirlo:
+#   1. Actions → "Nuevo microservicio" → Run workflow (nombre, tipo, ruta)
+#   2. Issue "🧩 Nuevo microservicio" en qt-infra + label "aprobado"
+# En ambos casos un admin aprueba el environment "provisioning" antes de crear nada.
+# =============================================================================
+name: Nuevo microservicio
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Nombre del repo (minúsculas y guiones, p. ej. qt-pedidos)"
+        type: string
+        required: true
+      type:
+        description: Tipo
+        type: choice
+        options: [backend, frontend]
+        required: true
+      api-path:
+        description: "Ruta pública del backend (p. ej. /api/pedidos). Vacío: /api. Frontend: siempre /"
+        type: string
+        default: ""
+      description:
+        description: Descripción breve
+        type: string
+        default: ""
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: new-service-${{ inputs.name || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  request:
+    name: Solicitud
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'aprobado' && contains(github.event.issue.labels.*.name, 'nuevo-microservicio'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      name: ${{ steps.parse.outputs.name }}
+      type: ${{ steps.parse.outputs.type }}
+      api_path: ${{ steps.parse.outputs.api_path }}
+      description: ${{ steps.parse.outputs.description }}
+    steps:
+      - name: Leer y validar la solicitud
+        id: parse
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_NAME: ${{ inputs.name }}
+          IN_TYPE: ${{ inputs.type }}
+          IN_PATH: ${{ inputs.api-path }}
+          IN_DESC: ${{ inputs.description }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Valor de una sección "### <Título>" del formulario del issue
+          field() { awk -v h="### $1" '$0 == h { f = 1; next } f && /^### / { exit } f && NF { print; exit }' <<<"$ISSUE_BODY" | tr -d '\r'; }
+          if [[ "$EVENT" == "issues" ]]; then
+            name="$(field "Nombre del microservicio")"
+            type="$(field "Tipo")"
+            api_path="$(field "Ruta pública (solo backend)")"
+            description="$(field "Descripción")"
+          else
+            name="$IN_NAME"; type="$IN_TYPE"; api_path="$IN_PATH"; description="$IN_DESC"
+          fi
+          [[ "$api_path" == "_No response_" ]] && api_path=""
+          [[ "$description" == "_No response_" ]] && description=""
+          name="$(tr '[:upper:]' '[:lower:]' <<<"$name" | xargs)"
+          type="$(tr '[:upper:]' '[:lower:]' <<<"$type" | awk '{print $1}')"
+          [[ "$name" =~ ^[a-z][a-z0-9-]{1,38}[a-z0-9]$ ]] || { echo "::error::Nombre inválido: '$name'"; exit 1; }
+          [[ "$type" =~ ^(backend|frontend)$ ]] || { echo "::error::Tipo inválido: '$type' (backend | frontend)"; exit 1; }
+          [[ -z "$api_path" || "$api_path" =~ ^/[a-z0-9/_-]*$ ]] || { echo "::error::Ruta inválida: '$api_path'"; exit 1; }
+          {
+            echo "name=$name"
+            echo "type=$type"
+            echo "api_path=$api_path"
+            echo "description=${description//$'\n'/ }"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Solicitud de microservicio"
+            echo "- Nombre: \`$name\`"
+            echo "- Tipo: $type"
+            echo "- Ruta pública: \`${api_path:-por defecto}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  create:
+    name: Crear ${{ needs.request.outputs.name }}
+    needs: request
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 20
+    # Un admin aprueba aquí antes de crear nada (environment con reviewers = team admins)
+    environment:
+      name: provisioning
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: CA interna de Vault
+        env:
+          CA_B64: ${{ vars.VAULT_CA_B64 }}
+        run: base64 -d <<<"$CA_B64" > "$RUNNER_TEMP/vault-ca.crt"
+
+      - name: Credenciales desde Vault (GitHub App + crear secretos)
+        id: vault
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-provision
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportEnv: false
+          outputToken: true
+          secrets: |
+            secret/data/platform/github-app client_id | CLIENT_ID ;
+            secret/data/platform/github-app private_key | PRIVATE_KEY
+
+      - name: Token de la GitHub App (organización)
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ steps.vault.outputs.CLIENT_ID }}
+          private-key: ${{ steps.vault.outputs.PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Crear el microservicio
+        id: create
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GOVERNANCE_APP_ID: ${{ vars.GOVERNANCE_APP_ID }}
+          INFRA_REPO: ${{ github.event.repository.name }}
+          GITOPS_REPO: ${{ vars.GITOPS_REPO || 'qt-gitops' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_TOKEN: ${{ steps.vault.outputs.vault_token }}
+          VAULT_CACERT: ${{ runner.temp }}/vault-ca.crt
+          NAME: ${{ needs.request.outputs.name }}
+          TYPE: ${{ needs.request.outputs.type }}
+          API_PATH: ${{ needs.request.outputs.api_path }}
+          DESCRIPTION: ${{ needs.request.outputs.description }}
+        run: |
+          args=("$NAME" "$TYPE" --ci --dir "$RUNNER_TEMP/$NAME")
+          [[ -n "$API_PATH" ]] && args+=(--api-path "$API_PATH")
+          [[ -n "$DESCRIPTION" ]] && args+=(--description "$DESCRIPTION")
+          bash scripts/new-service.sh "${args[@]}"
+
+      - name: Responder en la solicitud
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          OUTCOME: ${{ steps.create.outcome }}
+          REPO_URL: ${{ steps.create.outputs.repo_url }}
+          PR_URL: ${{ steps.create.outputs.gitops_pr }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "$OUTCOME" == "success" ]]; then
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "✅ Microservicio creado: ${REPO_URL}
+
+          - Alta en GitOps (2 admins la aprueban): ${PR_URL}
+          - Detalle: ${RUN_URL}"
+            gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --reason completed
+          else
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "❌ No se pudo crear el microservicio. Revisa la ejecución: ${RUN_URL}"
+          fi

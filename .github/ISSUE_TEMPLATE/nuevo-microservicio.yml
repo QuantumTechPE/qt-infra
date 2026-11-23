@@ -1,0 +1,50 @@
+name: 🧩 Nuevo microservicio
+description: Solicita un repositorio nuevo (backend o frontend) con toda la configuración corporativa.
+title: "[MICROSERVICIO] "
+labels: ["nuevo-microservicio"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Al agregar el label **aprobado**, el workflow *Nuevo microservicio* crea el repo y un admin confirma en el environment `provisioning`.
+
+        El repo nace con:
+        - esqueleto vacío con su estructura de capas;
+        - `deploy/` con properties/ConfigMaps, plan de recursos, HPA y secretos de Vault por ambiente (dev, qa, prod);
+        - pipelines CI/CD, protección de `main` y alta en GitOps.
+
+  - type: input
+    id: nombre
+    attributes:
+      label: Nombre del microservicio
+      description: Minúsculas, números y guiones (3-40). Será el nombre del repo, del namespace y del proyecto en Sonar.
+      placeholder: qt-pedidos
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo
+      options:
+        - backend
+        - frontend
+    validations:
+      required: true
+
+  - type: input
+    id: ruta
+    attributes:
+      label: Ruta pública (solo backend)
+      description: Prefijo de la API en el Ingress. Vacío = /api. Si ya hay otro backend en /api, usa uno propio.
+      placeholder: /api/pedidos
+    validations:
+      required: false
+
+  - type: textarea
+    id: descripcion
+    attributes:
+      label: Descripción
+      description: Qué responsabilidad tiene este microservicio.
+    validations:
+      required: true

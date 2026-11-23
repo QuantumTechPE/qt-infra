@@ -1,0 +1,199 @@
+# -----------------------------------------------------------------------------
+# Plataforma QT (100% gratuita / open source). Corre en tu PC o, mejor, en un
+# servidor Linux de la red al que lleguen los 3 clústeres k3s.
+#
+#   vault            HashiCorp Vault (TLS): secretos de CI/CD y de los microservicios
+#   vault-unsealer   desella Vault tras reinicios (solo laboratorio)
+#   sonarqube        SonarQube Community + plugin de ramas/PRs (Quality Gate)
+#   sonar-db         PostgreSQL de SonarQube
+#   runner           runners self-hosted EFÍMEROS de GitHub Actions (nivel organización)
+#   dependency-track (perfil "xray") inventario de SBOMs + monitoreo continuo de CVEs
+#   toolbox          (perfil "tools") Ansible, kubectl, Helm, Vault CLI para los scripts
+#
+# Se opera con platform/qt.ps1 (Windows) o platform/qt.sh.
+# Vault escucha en la LAN (los clústeres lo necesitan); el resto solo en 127.0.0.1.
+# -----------------------------------------------------------------------------
+name: qt-platform
+
+x-restart: &restart
+  restart: unless-stopped
+
+networks:
+  platform:
+    name: qt-platform
+
+volumes:
+  vault-data:
+  vault-logs:
+  sonar-db:
+  sonar-data:
+  sonar-logs:
+  dtrack-data:
+
+services:
+  # ----------------------------------------------------------------- Vault
+  vault:
+    image: hashicorp/vault:2.2.2
+    container_name: qt-vault
+    <<: *restart
+    command: ["server"]
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_ADDR: https://127.0.0.1:8200
+      VAULT_CACERT: /vault/tls/ca.crt
+    volumes:
+      - ./vault/config:/vault/config:ro
+      - ./.secrets/tls/vault.crt:/vault/tls/vault.crt:ro
+      - ./.secrets/tls/vault.key:/vault/tls/vault.key:ro
+      - ./.secrets/tls/ca.crt:/vault/tls/ca.crt:ro
+      - vault-data:/vault/file
+      - vault-logs:/vault/logs
+    ports:
+      - "${VAULT_BIND:-0.0.0.0}:8200:8200"
+    networks: [platform]
+
+  vault-unsealer:
+    image: qt-platform/toolbox:local
+    build: ./toolbox
+    container_name: qt-vault-unsealer
+    <<: *restart
+    command: ["bash", "/scripts/vault-unsealer.sh"]
+    environment:
+      VAULT_ADDR: https://vault:8200
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./.secrets:/secrets:ro
+    depends_on: [vault]
+    networks: [platform]
+
+  # ----------------------------------------------------------------- SonarQube
+  sonar-db:
+    image: postgres:17-alpine
+    container_name: qt-sonar-db
+    <<: *restart
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?Ejecuta 'qt up' para generar platform/.env}
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+  sonarqube:
+    # SonarQube Community Build + sonarqube-community-branch-plugin (análisis de
+    # ramas y Pull Requests, que la edición Community no trae de fábrica).
+    image: mc1arke/sonarqube-with-community-branch-plugin:26.10.0.133078-community
+    container_name: qt-sonarqube
+    <<: *restart
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD}
+      SONAR_SEARCH_JAVAADDITIONALOPTS: "-Dnode.store.allow_mmap=false"
+      SONAR_TELEMETRY_ENABLE: "false"
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-logs:/opt/sonarqube/logs
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+    ports:
+      - "127.0.0.1:9000:9000"
+    networks: [platform]
+
+  # ----------------------------------------------------------------- GitHub Actions runners
+  runner:
+    image: myoung34/github-runner:2.338.2-ubuntu-noble
+    <<: *restart
+    # El wrapper lee la credencial de la GitHub App desde Vault (AppRole) y
+    # delega en el entrypoint original de la imagen.
+    entrypoint: ["bash", "/qt/runner-entrypoint.sh"]
+    command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
+    environment:
+      VAULT_ADDR: https://vault:8200
+      VAULT_CACERT: /qt/ca.crt
+      RUNNER_SCOPE: org
+      ORG_NAME: ${GITHUB_OWNER:?}
+      APP_LOGIN: ${GITHUB_APP_LOGIN:-${GITHUB_OWNER}}
+      LABELS: qt-platform
+      RUNNER_NAME_PREFIX: qt-runner
+      RANDOM_RUNNER_SUFFIX: "true"
+      EPHEMERAL: "true"
+      DISABLE_AUTO_UPDATE: "true"
+      RUNNER_WORKDIR: /tmp/runner/work
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./runner/runner-entrypoint.sh:/qt/runner-entrypoint.sh:ro
+      - ./.secrets/runner-approle:/qt/approle:ro
+      - ./.secrets/tls/ca.crt:/qt/ca.crt:ro
+    depends_on: [vault]
+    deploy:
+      replicas: ${RUNNER_REPLICAS:-2}
+    networks: [platform]
+
+  # ----------------------------------------------------------------- Dependency-Track ("xray")
+  dtrack-apiserver:
+    image: dependencytrack/apiserver:4.14.7
+    container_name: qt-dtrack-api
+    profiles: [xray]
+    <<: *restart
+    deploy:
+      resources:
+        limits:
+          memory: 5g
+    volumes:
+      - dtrack-data:/data
+    ports:
+      - "127.0.0.1:8086:8080"
+    networks: [platform]
+
+  dtrack-frontend:
+    image: dependencytrack/frontend:4.14.7
+    container_name: qt-dtrack-ui
+    profiles: [xray]
+    <<: *restart
+    depends_on: [dtrack-apiserver]
+    environment:
+      API_BASE_URL: http://localhost:8086
+    ports:
+      - "127.0.0.1:8085:8080"
+    networks: [platform]
+
+  # ----------------------------------------------------------------- Utilidades
+  toolbox:
+    # Misma imagen que vault-unsealer (que es quien la construye).
+    image: qt-platform/toolbox:local
+    pull_policy: never
+    profiles: [tools]
+    environment:
+      VAULT_ADDR: https://vault:8200
+      GITHUB_OWNER: ${GITHUB_OWNER:-}
+      INFRA_REPO: ${INFRA_REPO:-qt-infra}
+      GITOPS_REPO: ${GITOPS_REPO:-qt-gitops}
+      GIT_BASE_URL: ${GIT_BASE_URL:-}
+      PLATFORM_HOST: ${PLATFORM_HOST:-}
+      VAULT_AUDIENCE: ${VAULT_AUDIENCE:-qt-vault}
+      INGRESS_DOMAIN_DEV: ${INGRESS_DOMAIN_DEV:-}
+      INGRESS_DOMAIN_QA: ${INGRESS_DOMAIN_QA:-}
+      INGRESS_DOMAIN_PROD: ${INGRESS_DOMAIN_PROD:-}
+      INGRESS_PORT_DEV: ${INGRESS_PORT_DEV:-}
+      INGRESS_PORT_QA: ${INGRESS_PORT_QA:-}
+      INGRESS_PORT_PROD: ${INGRESS_PORT_PROD:-}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ../.github/scripts:/ci-scripts:ro
+      - ./vault/policies:/policies:ro
+      - ./.secrets:/secrets
+      - ./.generated:/generated
+      - ../k8s:/k8s:ro
+      - ../templates:/templates:ro
+    networks: [platform]

@@ -1,0 +1,156 @@
+# Interno (CI de qt-infra):
+#   - workflows y scripts: actionlint + shellcheck
+#   - charts: helm lint + render + kubeconform
+#   - aprovisionamiento: ansible --syntax-check (dev, qa, prod)
+#   - plantillas de microservicio: build, tests e imagen (Quarkus y Angular)
+#   - seguridad: Gitleaks, Semgrep, Trivy
+name: infra-checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (workflows y scripts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Instalar actionlint (verificado)
+        run: bash .github/scripts/install-tools.sh actionlint
+      - name: actionlint (+ shellcheck en los run:)
+        run: actionlint -config-file .github/actionlint.yaml
+      - name: shellcheck
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          shellcheck -x -S warning "${files[@]}"
+
+  charts:
+    name: Charts (helm + kubeconform)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Instalar helm y kubeconform (verificados)
+        run: bash .github/scripts/install-tools.sh helm kubeconform
+      - name: Lint, render y validación
+        run: |
+          schemas=(-schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json')
+          for chart in k8s/charts/*/; do
+            for values in "$chart"ci/*.yaml; do
+              echo "▶ $chart con $values"
+              helm lint "$chart" -f "$values"
+              helm template ci "$chart" -f "$values" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}"
+            done
+          done
+          # Sin digest el servicio está dado de alta pero no se despliega: no debe generar recursos.
+          out="$(helm template ci k8s/charts/qt-service)"
+          [[ -z "$(grep -v '^\s*$' <<<"$out" | grep -v '^---' || true)" ]] || { echo "::error::Sin image.digest no debería renderizar recursos"; exit 1; }
+      - name: deploy/ de las plantillas (dev, qa, prod)
+        run: |
+          bash .github/scripts/deploy-validate.sh templates/service-quarkus qt-template-quarkus k8s/charts/qt-service
+          bash .github/scripts/deploy-validate.sh templates/service-angular qt-template-angular k8s/charts/qt-service
+
+  ansible:
+    name: Aprovisionamiento (ansible)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Instalar ansible-core
+        run: pipx install ansible-core
+      - name: Syntax check por ambiente
+        working-directory: k8s/provisioning
+        env:
+          ANSIBLE_CONFIG: ansible.cfg
+        run: |
+          for env in dev qa prod; do
+            ansible-playbook --syntax-check -i "inventories/${env}" site.yml
+            ansible-inventory -i "inventories/${env}" --graph
+          done
+
+  template-quarkus:
+    name: Plantilla Quarkus
+    uses: $/.github/workflows/_build.yml
+    with:
+      stack: quarkus
+      working-directory: templates/service-quarkus
+      artifact-prefix: tpl-quarkus
+
+  template-angular:
+    name: Plantilla Angular
+    uses: $/.github/workflows/_build.yml
+    with:
+      stack: angular
+      working-directory: templates/service-angular
+      artifact-prefix: tpl-angular
+
+  image-quarkus:
+    name: Imagen plantilla Quarkus
+    needs: template-quarkus
+    uses: $/.github/workflows/_image.yml
+    with:
+      stack: quarkus
+      working-directory: templates/service-quarkus
+      artifact-prefix: tpl-quarkus
+      image-name: qt-template-quarkus
+      push: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+
+  image-angular:
+    name: Imagen plantilla Angular
+    needs: template-angular
+    uses: $/.github/workflows/_image.yml
+    with:
+      stack: angular
+      working-directory: templates/service-angular
+      artifact-prefix: tpl-angular
+      image-name: qt-template-angular
+      push: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+
+  security:
+    name: Seguridad
+    uses: $/.github/workflows/_security.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [lint, charts, ansible, template-quarkus, template-angular, image-quarkus, image-angular, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Consolidar resultados
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          {
+            echo "| Job | Resultado |"
+            echo "|---|---|"
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<<"$RESULTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=$(jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")' <<<"$RESULTS")
+          [[ -z "$failed" ]] || { echo "::error::Jobs con fallas: $failed"; exit 1; }
+          echo "✅ Todo en verde"

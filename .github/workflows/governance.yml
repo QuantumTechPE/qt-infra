@@ -1,0 +1,23 @@
+# Gobierno de merges de qt-infra: 2 aprobaciones de admins → auto-merge.
+name: Governance
+
+on:
+  workflow_run:
+    workflows: ["Governance Trigger"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  governance:
+    name: Governance
+    if: github.event.workflow_run.head_repository.full_name == github.repository
+    uses: ./.github/workflows/service-governance.yml
+    permissions:
+      contents: read
+      id-token: write

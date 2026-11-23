@@ -1,0 +1,27 @@
+{{- if .Values.grafana.adminSecret.enabled }}
+{{- $key := default (printf "platform/observability/%s" .Values.environment) .Values.grafana.adminSecret.vaultKey }}
+# Usuario y contraseña de admin de Grafana desde Vault ({{ $key }}).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.grafana.adminSecret.name }}
+  labels:
+    app.kubernetes.io/part-of: qt-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    name: {{ .Values.grafana.adminSecret.name }}
+    creationPolicy: Owner
+  data:
+    - secretKey: admin-user
+      remoteRef:
+        key: {{ $key }}
+        property: admin-user
+    - secretKey: admin-password
+      remoteRef:
+        key: {{ $key }}
+        property: admin-password
+{{- end }}

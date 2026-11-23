@@ -1,0 +1,25 @@
+# CodeQL (SAST semántico; gratis en repos públicos). El ruleset de main exige
+# que no haya alertas de seguridad HIGH o superiores.
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-codeql.yml@main
+    with:
+      languages: '__CODEQL_LANGUAGES__'
+    permissions:
+      contents: read
+      actions: read
+      security-events: write

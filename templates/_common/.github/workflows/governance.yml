@@ -1,0 +1,25 @@
+# Gobierno de merges: 2 aprobaciones de admins → auto-merge.
+# Corre con el código de main (workflow_run); publica el status requerido
+# "governance/admin-approvals" con la GitHub App de plataforma.
+name: Governance
+
+on:
+  workflow_run:
+    workflows: ["Governance Trigger"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  governance:
+    name: Governance
+    if: github.event.workflow_run.head_repository.full_name == github.repository
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-governance.yml@main
+    permissions:
+      contents: read
+      id-token: write

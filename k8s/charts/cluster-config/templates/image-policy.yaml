@@ -1,0 +1,43 @@
+{{- $p := .Values.imagePolicy }}
+{{- if $p.enabled }}
+{{- if not (and $p.imageGlob $p.subjectRegExp) }}
+{{- fail "imagePolicy.imageGlob e imagePolicy.subjectRegExp son obligatorios" }}
+{{- end }}
+# Solo se admiten imágenes firmadas (cosign keyless) por el workflow corporativo
+# de imágenes de qt-infra. Aplica a los namespaces de microservicios
+# (label qt.platform/managed=true, que pone el ApplicationSet de servicios).
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: qt-require-signed-images
+  labels:
+    app.kubernetes.io/part-of: qt-platform
+spec:
+  validationActions: [{{ $p.action }}]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchLabels:
+        qt.platform/managed: "true"
+  matchImageReferences:
+    - glob: {{ $p.imageGlob | quote }}
+  attestors:
+    - name: pipeline
+      cosign:
+        keyless:
+          identities:
+            - issuer: {{ $p.issuer | quote }}
+              subjectRegExp: {{ $p.subjectRegExp | quote }}
+        ctlog:
+          url: {{ $p.rekorUrl | quote }}
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors.pipeline])).all(e, e > 0)
+      message: >-
+        La imagen no está firmada por el pipeline corporativo (qt-infra/.github/workflows/_image.yml).
+        Solo se despliegan imágenes construidas y escaneadas por el CI/CD.
+{{- end }}

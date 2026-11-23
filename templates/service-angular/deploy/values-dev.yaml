@@ -1,0 +1,19 @@
+# =============================================================================
+# qt-template-angular · DEV  (se despliega en cada merge a main)
+# =============================================================================
+
+# ---- Plan de recursos por pod -------------------------------------------------
+replicaCount: 1
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false

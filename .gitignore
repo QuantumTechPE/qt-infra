@@ -1,0 +1,31 @@
+# --- Secretos y estado local de la plataforma (NUNCA se versionan) ---
+platform/.env
+platform/.secrets/
+platform/.generated/
+platform/.bin/
+*.pem
+*.key
+vault-init*.json
+
+# --- Builds ---
+**/target/
+**/dist/
+**/coverage/
+**/node_modules/
+**/.angular/
+.qt-dist/
+.qt-infra/
+.qt-reports/
+
+# --- Reportes de seguridad generados localmente ---
+*.sarif
+gitleaks-report.*
+sbom-*.json
+
+# --- IDEs / SO ---
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

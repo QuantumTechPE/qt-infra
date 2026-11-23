@@ -1,0 +1,34 @@
+# Kyverno: control de admisión (solo imágenes firmadas por el pipeline).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kyverno.github.io/kyverno
+    chart: kyverno
+    targetRevision: 3.10.0
+    helm:
+      releaseName: kyverno
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      # Reintentos ilimitados: en un clúster nuevo los webhooks de External Secrets/Kyverno
+      # tardan en estar listos; Argo CD no reintenta solo una revisión fallida.
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

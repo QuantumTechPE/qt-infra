@@ -1,0 +1,66 @@
+{{- if .Values.alerts.enabled }}
+# Alertas de los microservicios de la plataforma (además de las estándar de
+# kube-prometheus-stack: CrashLoopBackOff, nodos, disco, etc.).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: qt-microservicios
+  labels:
+    app.kubernetes.io/part-of: qt-platform
+spec:
+  groups:
+    - name: qt-microservicios
+      rules:
+        - alert: QTServicioSinReplicas
+          expr: |
+            (kube_deployment_status_replicas_available
+              * on (namespace, deployment) group_left
+              kube_deployment_labels{label_app_kubernetes_io_part_of="qt-platform"}) == 0
+          for: 5m
+          labels:
+            severity: critical
+            environment: {{ .Values.environment }}
+          annotations:
+            summary: "{{ "{{ $labels.deployment }}" }} sin réplicas disponibles ({{ .Values.environment }})"
+            description: "El microservicio {{ "{{ $labels.namespace }}/{{ $labels.deployment }}" }} no tiene pods listos hace 5 minutos."
+
+        - alert: QTTasaDeErrores5xx
+          expr: |
+            sum by (namespace) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+              / sum by (namespace) (rate(http_server_requests_seconds_count[5m]))
+              > {{ .Values.alerts.errorRateThreshold }}
+          for: 10m
+          labels:
+            severity: warning
+            environment: {{ .Values.environment }}
+          annotations:
+            summary: "{{ "{{ $labels.namespace }}" }}: más del {{ mulf .Values.alerts.errorRateThreshold 100 }} % de respuestas 5xx"
+            description: "Tasa de errores 5xx: {{ "{{ $value | humanizePercentage }}" }} en los últimos 10 minutos."
+
+        - alert: QTHPAEnElMaximo
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas
+              >= kube_horizontalpodautoscaler_spec_max_replicas
+          for: 15m
+          labels:
+            severity: warning
+            environment: {{ .Values.environment }}
+          annotations:
+            summary: "{{ "{{ $labels.namespace }}" }}: el HPA está en su máximo de réplicas"
+            description: "Revisa el plan de recursos (deploy/values-{{ .Values.environment }}.yaml): maxReplicas o requests."
+
+        - alert: QTMemoriaCercaDelLimite
+          expr: |
+            max by (namespace, pod) (
+              container_memory_working_set_bytes{container="app"}
+                / on (namespace, pod, container)
+              kube_pod_container_resource_limits{resource="memory", container="app"}
+            ) > {{ .Values.alerts.memoryLimitThreshold }}
+          for: 10m
+          labels:
+            severity: warning
+            environment: {{ .Values.environment }}
+          annotations:
+            summary: "{{ "{{ $labels.namespace }}/{{ $labels.pod }}" }} usa más del {{ mulf .Values.alerts.memoryLimitThreshold 100 }} % de su límite de memoria"
+            description: "Riesgo de OOMKilled. Ajusta resources.limits.memory en deploy/values-{{ .Values.environment }}.yaml."
+{{- end }}

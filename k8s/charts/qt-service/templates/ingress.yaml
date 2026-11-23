@@ -1,0 +1,27 @@
+{{- if and (include "qt-service.enabled" .) .Values.ingress.enabled }}
+# Varios microservicios comparten el host del ambiente y se reparten rutas
+# (p. ej. frontend en "/", backend en "/api"). Traefik combina los Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "qt-service.name" . }}
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ include "qt-service.ingressHost" . | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "qt-service.name" . }}
+                port:
+                  name: http
+{{- end }}

@@ -1,0 +1,26 @@
+# Disparador liviano del gobierno de merges. Corre con el contexto del PR (sin
+# permisos ni secretos) y su única función es activar `governance.yml`, que se
+# ejecuta con el código de main (confiable) vía `workflow_run`.
+name: Governance Trigger
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions: {}
+
+jobs:
+  trigger:
+    name: Notificar evento de revisión
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Evento
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          EVENT: ${{ github.event_name }}/${{ github.event.action }}
+        run: |
+          echo "PR #${PR} -> ${EVENT}"

@@ -1,0 +1,28 @@
+# Valores por clúster: qt-gitops/clusters/<ambiente>/cluster-config.values.yaml
+environment: dev
+
+# Dominio del Ingress del clúster (los micros usan qt.<dominio>, Argo CD argocd.<dominio>)
+ingressDomain: ""
+
+vault:
+  # https://<PLATFORM_HOST>:8200 (TLS con la CA interna de la plataforma)
+  server: ""
+  # CA en PEM codificada en base64
+  caBundle: ""
+  # Auth Kubernetes de este clúster en Vault (k8s-<ambiente>)
+  mountPath: ""
+  role: external-secrets
+  serviceAccount:
+    name: external-secrets
+    namespace: external-secrets
+
+imagePolicy:
+  enabled: true
+  # Deny (bloquea) | Audit (solo reporta)
+  action: Deny
+  # Imágenes a las que aplica la política
+  imageGlob: ""
+  # Identidad del firmante: el workflow de imágenes de qt-infra
+  subjectRegExp: ""
+  issuer: https://token.actions.githubusercontent.com
+  rekorUrl: https://rekor.sigstore.dev

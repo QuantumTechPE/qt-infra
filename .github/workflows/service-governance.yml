@@ -1,0 +1,53 @@
+# Gobierno de merges: 2 aprobaciones de admins → auto-merge.
+# Lo llama governance.yml (workflow_run) de cada repo: corre siempre con el
+# código de main, así que un PR no puede alterar esta lógica. Publica el status
+# requerido "governance/admin-approvals" firmado por la GitHub App.
+name: service-governance
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Aprobaciones de admins
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Evaluar y habilitar auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          ADMIN_APPROVALS_REQUIRED: ${{ vars.ADMIN_APPROVALS_REQUIRED || '2' }}
+        run: |
+          numbers=$(jq -r '.[].number' <<<"$PRS")
+          if [[ -z "$numbers" ]]; then
+            numbers=$(gh pr list --repo "$REPO" --head "$HEAD_BRANCH" --state open --json number --jq '.[].number')
+          fi
+          for n in $numbers; do
+            PR_NUMBER="$n" bash .qt-infra/.github/scripts/admin-approvals.sh
+          done

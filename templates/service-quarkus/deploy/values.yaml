@@ -1,0 +1,40 @@
+# =============================================================================
+# qt-template-quarkus · valores COMUNES a dev, qa y prod
+# (chart qt-infra/k8s/charts/qt-service; referencia completa en su values.yaml)
+#
+# Lo específico de cada ambiente va en values-<ambiente>.yaml, config/<ambiente>/
+# y vault/secrets.yaml. Al promover, el pipeline compone todo en
+# qt-gitops/apps/qt-template-quarkus/<ambiente>/values.yaml.
+# =============================================================================
+
+containerPort: 8080
+
+probes:
+  liveness:
+    path: /q/health/live
+    initialDelaySeconds: 15
+  readiness:
+    path: /q/health/ready
+    initialDelaySeconds: 5
+
+# Ruta pública: <subdomain>.<dominio del clúster><path>
+ingress:
+  enabled: true
+  subdomain: qt
+  path: /api
+
+# Métricas Micrometer → Prometheus/Grafana del ambiente
+metrics:
+  enabled: true
+  path: /q/metrics
+
+# deploy/config/<ambiente>/application.properties se monta aquí: Quarkus lo lee
+# desde ./config/ (el WORKDIR de la imagen es /deployments) con prioridad sobre
+# el application.properties empaquetado.
+configFiles:
+  mountPath: /deployments/config
+
+# ConfigMap común → variables de entorno
+config:
+  # Heap de la JVM = 75 % del límite de memoria del pod
+  JAVA_MAX_MEM_RATIO: "75"

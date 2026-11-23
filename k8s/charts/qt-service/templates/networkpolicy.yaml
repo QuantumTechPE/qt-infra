@@ -1,0 +1,26 @@
+{{- if and (include "qt-service.enabled" .) .Values.networkPolicy.enabled }}
+# Solo acepta tráfico del propio namespace y del Ingress Controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "qt-service.name" . }}
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "qt-service.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        {{- range .Values.networkPolicy.ingressNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - port: http
+          protocol: TCP
+{{- end }}

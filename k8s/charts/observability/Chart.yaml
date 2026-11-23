@@ -1,0 +1,9 @@
+apiVersion: v2
+name: observability
+description: >
+  Configuración de observabilidad de la plataforma QT por clúster (dev | qa | prod):
+  credencial de Grafana desde Vault, dashboards de microservicios y alertas.
+  Complementa kube-prometheus-stack, Loki y Alloy (addons de qt-gitops).
+type: application
+version: 1.0.0
+appVersion: "1.0"

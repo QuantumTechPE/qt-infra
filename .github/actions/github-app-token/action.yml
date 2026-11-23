@@ -1,0 +1,61 @@
+name: GitHub App token (desde Vault)
+description: >
+  Se autentica en HashiCorp Vault con el token OIDC del job (sin secretos
+  estáticos en GitHub), lee la credencial de la GitHub App de plataforma y emite
+  un token de instalación de corta vida. Requiere `permissions: id-token: write`
+  y un runner self-hosted `qt-platform` (con acceso a Vault).
+
+inputs:
+  vault-addr:
+    description: URL de Vault (vars.VAULT_ADDR)
+    required: true
+  vault-audience:
+    description: Audiencia del JWT de GitHub que Vault acepta (vars.VAULT_AUDIENCE)
+    required: true
+  vault-ca:
+    description: CA de Vault en PEM codificado en base64 (vars.VAULT_CA_B64)
+    required: true
+  vault-role:
+    description: Rol JWT en Vault (atado a workflows concretos de qt-infra y a la rama main)
+    required: false
+    default: gha-automation
+  owner:
+    description: Dueño de la instalación (por defecto, el del repo actual)
+    required: false
+    default: ""
+  repositories:
+    description: Limita el token a estos repos (coma). Vacío = el repo actual.
+    required: false
+    default: ""
+
+outputs:
+  token:
+    description: Token de instalación de la GitHub App (expira en 1 hora)
+    value: ${{ steps.app.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Leer credencial de la GitHub App desde Vault
+      id: vault
+      uses: hashicorp/vault-action@v4
+      with:
+        url: ${{ inputs.vault-addr }}
+        caCertificate: ${{ inputs.vault-ca }}
+        method: jwt
+        path: jwt-github
+        role: ${{ inputs.vault-role }}
+        jwtGithubAudience: ${{ inputs.vault-audience }}
+        exportEnv: false
+        secrets: |
+          secret/data/platform/github-app client_id | CLIENT_ID ;
+          secret/data/platform/github-app private_key | PRIVATE_KEY
+
+    - name: Emitir token de instalación
+      id: app
+      uses: actions/create-github-app-token@v3
+      with:
+        client-id: ${{ steps.vault.outputs.CLIENT_ID }}
+        private-key: ${{ steps.vault.outputs.PRIVATE_KEY }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}

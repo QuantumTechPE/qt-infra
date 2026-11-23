@@ -1,0 +1,18 @@
+{{- if include "qt-service.enabled" . }}
+{{- /* Valores de la plataforma + config del servicio (el servicio tiene prioridad) */ -}}
+{{- $platform := dict "QT_SERVICE" (include "qt-service.name" .) "QT_ENVIRONMENT" .Values.environment }}
+{{- $data := merge (deepCopy (.Values.config | default dict)) $platform }}
+# ConfigMap del ambiente: valores NO secretos → variables de entorno.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qt-service.name" . }}-config
+  labels:
+    {{- include "qt-service.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  {{- range $key, $value := $data }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: qt-service
+description: >
+  Chart común de la plataforma QT para cualquier microservicio (Quarkus, Angular, ...).
+  Cada servicio solo aporta valores desde qt-gitops/apps/<servicio>/.
+type: application
+version: 1.0.0
+appVersion: "1.0"
+keywords: [qt-platform, microservice, gitops]

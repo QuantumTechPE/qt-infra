@@ -1,0 +1,245 @@
+# =============================================================================
+# CD corporativo de microservicios (lo llama .github/workflows/cd.yml de cada
+# repo de servicio en cada merge a main).
+#
+#   release-please ─┐
+#   build ─ sonar ──┼─► imagen firmada ─► dev ──────────► qa ─────────► prod
+#   seguridad ──────┘   (GHCR)            (cada merge)    (cada release) (release +
+#                                                                         aprobación admins)
+#
+# Cada ambiente es un clúster k3s con Argo CD: la "promoción" es un commit en
+# qt-gitops con el digest de la imagen. La MISMA imagen recorre los 3 ambientes.
+# =============================================================================
+name: service-cd
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: quarkus | angular
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Versionado (release-please)
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      # Token de la GitHub App (no GITHUB_TOKEN) para que el PR de release dispare
+      # el CI y pase por el mismo gobierno que cualquier PR.
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: release-please
+        id: rp
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    name: Build
+    uses: $/.github/workflows/_build.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+
+  security:
+    name: Seguridad
+    uses: $/.github/workflows/_security.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  sonar:
+    name: SonarQube
+    needs: build
+    uses: $/.github/workflows/_sonar.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+    permissions:
+      contents: read
+      id-token: write
+
+  image:
+    name: Imagen
+    needs: [release, build, security, sonar]
+    uses: $/.github/workflows/_image.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+      push: true
+      version: ${{ needs.release.outputs.release_created == 'true' && needs.release.outputs.version || '' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+
+  release-assets:
+    name: Artefactos del release
+    needs: [release, image]
+    if: needs.release.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ needs.release.outputs.tag_name }}
+      SERVICE: ${{ github.event.repository.name }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-dist
+          path: assets
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-sbom
+          path: assets
+
+      - name: Verificar integridad y generar SHA256SUMS
+        working-directory: assets
+        run: |
+          sha256sum -c dist.tar.gz.sha256
+          mv dist.tar.gz "${SERVICE}-${TAG}.tar.gz"
+          mv sbom.cdx.json "${SERVICE}-${TAG}.sbom.cdx.json"
+          rm -f dist.tar.gz.sha256
+          sha256sum -- * > SHA256SUMS
+
+      - uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Firmar SHA256SUMS (keyless)
+        working-directory: assets
+        run: cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+
+      - name: Attestation de procedencia de los binarios
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: assets/SHA256SUMS
+
+      - name: Adjuntar al GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" assets/* --clobber --repo "$GITHUB_REPOSITORY"
+          { echo "### Release ${TAG}"; echo '```'; cat assets/SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  dependency-track:
+    name: SBOM → Dependency-Track
+    needs: [release, image]
+    if: vars.DTRACK_ENABLED == 'true'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-sbom
+          path: sbom
+
+      - name: API key desde Vault
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-ci
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          secrets: |
+            secret/data/ci/dependency-track api_key | DTRACK_API_KEY ;
+            secret/data/ci/dependency-track url | DTRACK_URL
+
+      - name: Subir SBOM
+        env:
+          VERSION: ${{ needs.release.outputs.version || github.sha }}
+          SERVICE: ${{ github.event.repository.name }}
+        run: |
+          curl -fsS -X POST "${DTRACK_URL}/api/v1/bom" \
+            -H "X-Api-Key: ${DTRACK_API_KEY}" \
+            -F "autoCreate=true" -F "projectName=${SERVICE}" -F "projectVersion=${VERSION}" \
+            -F "bom=@sbom/sbom.cdx.json" > /dev/null
+          echo "📦 ${SERVICE}@${VERSION} enviado a Dependency-Track" >> "$GITHUB_STEP_SUMMARY"
+
+  dev:
+    name: dev
+    needs: [release, image]
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: dev
+      image: ${{ needs.image.outputs.image }}
+      digest: ${{ needs.image.outputs.digest }}
+      version: ${{ needs.release.outputs.release_created == 'true' && needs.release.outputs.tag_name || '' }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+
+  qa:
+    name: qa
+    needs: [release, image, dev]
+    if: needs.release.outputs.release_created == 'true'
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: qa
+      image: ${{ needs.image.outputs.image }}
+      digest: ${{ needs.image.outputs.digest }}
+      version: ${{ needs.release.outputs.tag_name }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+
+  prod:
+    name: prod
+    needs: [release, image, qa]
+    if: needs.release.outputs.release_created == 'true'
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: prod
+      image: ${{ needs.image.outputs.image }}
+      digest: ${{ needs.image.outputs.digest }}
+      version: ${{ needs.release.outputs.tag_name }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write

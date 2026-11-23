@@ -1,0 +1,116 @@
+# =============================================================================
+# Valores por defecto del chart qt-service.
+#
+# Cada microservicio define los suyos en su repo (carpeta deploy/):
+#   deploy/values.yaml          común a los 3 ambientes
+#   deploy/values-<env>.yaml    plan de recursos, réplicas, HPA, PDB, ConfigMap del ambiente
+#   deploy/config/<env>/*       archivos de configuración (application.properties, config.json)
+#   deploy/vault/secrets.yaml   claves de Vault que necesita
+# El pipeline los compone en qt-gitops/apps/<servicio>/<env>/values.yaml al promover.
+# =============================================================================
+
+global:
+  # Dominio del Ingress del clúster. Lo inyecta el ApplicationSet de cada ambiente.
+  ingressDomain: ""
+
+# Nombre del servicio (por defecto, el releaseName que pone Argo CD = repo).
+nameOverride: ""
+
+# dev | qa | prod. Lo fuerza el ApplicationSet de cada clúster.
+environment: dev
+
+image:
+  repository: ""
+  # sha256:... (lo escribe el pipeline). Vacío = dado de alta pero aún sin versión: no se despliega nada.
+  digest: ""
+  tag: ""
+
+replicaCount: 1
+revisionHistoryLimit: 5
+progressDeadlineSeconds: 300
+containerPort: 8080
+
+probes:
+  liveness:
+    path: /q/health/live
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    path: /q/health/ready
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 3
+
+# Plan de recursos por pod
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# ConfigMap → variables de entorno (valores NO secretos).
+config: {}
+
+# ConfigMap → archivos montados en mountPath (p. ej. /deployments/config/application.properties).
+configFiles:
+  mountPath: ""
+  files: {}
+
+# Secret ← Vault vía External Secrets (ClusterSecretStore "vault").
+# Lee secret/apps/<servicio>/<ambiente>; cada clave llega como variable de entorno.
+secrets:
+  enabled: false
+  key: ""
+  store: vault
+  refreshInterval: 15m
+
+ingress:
+  enabled: true
+  className: traefik
+  # host = <subdomain>.<global.ingressDomain>, salvo que se defina "host" explícito.
+  subdomain: qt
+  host: ""
+  path: /
+  pathType: Prefix
+  annotations: {}
+
+# Métricas para Prometheus (ServiceMonitor). Quarkus: /q/metrics.
+metrics:
+  enabled: false
+  path: /q/metrics
+  interval: 30s
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  # 0 = no escalar por memoria
+  targetMemoryUtilizationPercentage: 0
+  # Evita bajar réplicas por picos cortos
+  scaleDownStabilizationSeconds: 300
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Reparte las réplicas entre nodos distintos (recomendado en prod)
+spreadAcrossNodes: false
+
+networkPolicy:
+  enabled: true
+  # Namespaces desde los que se acepta tráfico: Ingress (Traefik, en kube-system) y Prometheus.
+  ingressNamespaces:
+    - kube-system
+    - monitoring
+
+# Volumen temporal: el filesystem del contenedor es de solo lectura.
+tmpVolume:
+  sizeLimit: 256Mi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

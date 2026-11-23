@@ -1,0 +1,15 @@
+# Convenciones del PR. Check requerido: "PR Lint / Convenciones".
+name: PR Lint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-lint:
+    name: PR Lint
+    uses: ./.github/workflows/service-pr-lint.yml

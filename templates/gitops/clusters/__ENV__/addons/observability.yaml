@@ -1,0 +1,35 @@
+# Observabilidad de la plataforma (__ENV__): admin de Grafana desde Vault,
+# dashboard "QT · Microservicios" y alertas. Chart en qt-infra.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: __GIT_BASE_URL__/__INFRA_REPO__.git
+    targetRevision: main
+    path: k8s/charts/observability
+    helm:
+      releaseName: observability
+      parameters:
+        - name: environment
+          value: __ENV__
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # PrometheusRule/ExternalSecret dependen de CRDs de otros addons
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

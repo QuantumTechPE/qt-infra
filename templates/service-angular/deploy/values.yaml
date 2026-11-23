@@ -1,0 +1,33 @@
+# =============================================================================
+# qt-template-angular · valores COMUNES a dev, qa y prod
+# (chart qt-infra/k8s/charts/qt-service; referencia completa en su values.yaml)
+#
+# Lo específico de cada ambiente va en values-<ambiente>.yaml y config/<ambiente>/.
+# Al promover, el pipeline compone todo en qt-gitops/apps/qt-template-angular/<ambiente>/values.yaml.
+# =============================================================================
+
+containerPort: 8080
+
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 3
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 2
+
+# Ruta pública: <subdomain>.<dominio del clúster><path>
+ingress:
+  enabled: true
+  subdomain: qt
+  path: /
+
+# Nginx no expone métricas Prometheus (las del Ingress las recoge Traefik)
+metrics:
+  enabled: false
+
+# deploy/config/<ambiente>/config.json se monta aquí → la SPA lo lee de /runtime/config.json
+configFiles:
+  mountPath: /usr/share/nginx/html/runtime
+
+config: {}

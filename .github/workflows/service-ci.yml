@@ -1,0 +1,142 @@
+# =============================================================================
+# CI corporativo de microservicios (lo llama .github/workflows/ci.yml de cada
+# repo de servicio). Check requerido por el ruleset de main: "CI / Gate".
+#
+#   build + tests ─┬─ SonarQube (Quality Gate)
+#                  └─ imagen + Trivy
+#   Gitleaks · Semgrep · Trivy fs · Dependency Review
+# =============================================================================
+name: service-ci
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: quarkus | angular
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    uses: $/.github/workflows/_build.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+
+  security:
+    name: Seguridad
+    uses: $/.github/workflows/_security.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Política corporativa (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v5.0.1
+        with:
+          config-file: ./.qt-infra/.github/dependency-review-config.yml
+
+  deploy:
+    name: Despliegue (dev, qa, prod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Chart y scripts de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: |
+            .github/scripts
+            k8s/charts
+          persist-credentials: false
+      - name: Instalar helm y kubeconform (verificados)
+        run: bash .qt-infra/.github/scripts/install-tools.sh helm kubeconform
+      - name: Renderizar y validar deploy/ en los 3 ambientes
+        env:
+          WD: ${{ inputs.working-directory }}
+          SERVICE: ${{ github.event.repository.name }}
+        run: bash .qt-infra/.github/scripts/deploy-validate.sh "$WD" "$SERVICE" .qt-infra/k8s/charts/qt-service
+
+  # SonarQube y Vault son locales: solo PRs internos (no forks) y no Dependabot.
+  sonar:
+    name: SonarQube
+    needs: build
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
+    uses: $/.github/workflows/_sonar.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+    permissions:
+      contents: read
+      id-token: write
+
+  image:
+    name: Imagen
+    needs: build
+    uses: $/.github/workflows/_image.yml
+    with:
+      stack: ${{ inputs.stack }}
+      working-directory: ${{ inputs.working-directory }}
+      push: false
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [build, security, dependency-review, deploy, sonar, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consolidar resultados
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          SONAR_EXPECTED: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+        run: |
+          {
+            echo "## CI Gate"
+            echo "| Job | Resultado |"
+            echo "|---|---|"
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<<"$RESULTS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=$(jq -r '[to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key] | join(", ")' <<<"$RESULTS")
+          if [[ -n "$failed" ]]; then
+            echo "::error::Jobs con fallas: $failed"
+            exit 1
+          fi
+          if [[ "$SONAR_EXPECTED" == "true" && "$(jq -r '.sonar.result' <<<"$RESULTS")" != "success" ]]; then
+            echo "::error::SonarQube no se ejecutó (¿runners self-hosted apagados?)"
+            exit 1
+          fi
+          echo "✅ Todo en verde"

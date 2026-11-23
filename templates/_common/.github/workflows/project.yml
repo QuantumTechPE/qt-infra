@@ -1,0 +1,25 @@
+# Historia de usuario ↔ tablero de la organización ↔ rama/PR.
+# pull_request_target: corre con el código de main, nunca con el del PR.
+name: Project Automation
+
+on:
+  issues:
+    types: [opened, reopened, assigned, closed]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, converted_to_draft, closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  project:
+    name: Tablero
+    if: vars.PROJECT_NUMBER != ''
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-project.yml@main
+    permissions:
+      contents: read
+      id-token: write

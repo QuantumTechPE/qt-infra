@@ -1,0 +1,20 @@
+# dev | qa | prod (lo inyecta la aplicación de Argo CD de cada clúster)
+environment: dev
+
+grafana:
+  # Credencial de admin de Grafana en Vault: secret/platform/observability/<ambiente>
+  # (la crea qt k8s-bootstrap). La sincroniza External Secrets.
+  adminSecret:
+    enabled: true
+    name: grafana-admin
+    vaultKey: ""
+
+dashboards:
+  enabled: true
+  folder: QT Plataforma
+
+alerts:
+  enabled: true
+  # Umbrales
+  errorRateThreshold: 0.05     # 5 % de respuestas 5xx
+  memoryLimitThreshold: 0.9    # 90 % del límite de memoria del pod

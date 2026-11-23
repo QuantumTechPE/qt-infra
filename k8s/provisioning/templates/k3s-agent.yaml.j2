@@ -1,0 +1,5 @@
+# Generado por qt-infra (k8s/provisioning). No editar a mano.
+server: "https://{{ k3s_api_endpoint }}:6443"
+token: "{{ k3s_token }}"
+node-label:
+  - "qt.platform/environment={{ cluster_env }}"

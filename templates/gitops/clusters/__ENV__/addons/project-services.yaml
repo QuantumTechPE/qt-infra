@@ -1,0 +1,24 @@
+# Proyecto de Argo CD para microservicios: solo puede desplegar el chart de
+# qt-infra con valores de qt-gitops, y no puede crear recursos de clúster
+# (salvo su propio Namespace).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  description: Microservicios de la organización (__ENV__)
+  sourceRepos:
+    - __GIT_BASE_URL__/__INFRA_REPO__.git
+    - __GIT_BASE_URL__/__GITOPS_REPO__.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange

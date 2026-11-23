@@ -1,0 +1,30 @@
+# =============================================================================
+# qt-template-quarkus · PROD  (mismo release que QA, con aprobación de admins)
+# =============================================================================
+
+# ---- Plan de recursos por pod -------------------------------------------------
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 1Gi
+
+# ---- Escalado horizontal (HPA) ------------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2           # nunca menos de 2 réplicas en prod
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  scaleDownStabilizationSeconds: 600
+
+# ---- Alta disponibilidad ------------------------------------------------------
+podDisruptionBudget:       # durante mantenimientos de nodos siempre queda 1 pod arriba
+  enabled: true
+  minAvailable: 1
+spreadAcrossNodes: true    # réplicas en nodos distintos
+
+# ---- ConfigMap del ambiente → variables de entorno ----------------------------
+config: {}

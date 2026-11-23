@@ -1,0 +1,5 @@
+{
+  "appName": "qt-template-angular",
+  "environment": "qa",
+  "apiBaseUrl": "/api"
+}

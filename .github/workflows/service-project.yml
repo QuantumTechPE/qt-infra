@@ -1,0 +1,45 @@
+# Historia de usuario ↔ tablero de la organización ↔ rama/PR.
+# Lo llama project.yml (issues + pull_request_target) de cada repo.
+#   Historia creada → Backlog · asignada → rama + In Progress
+#   PR abierto → In Review · mergeado → Done
+name: service-project
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sincronizar tablero
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Actualizar historia, rama y tablero
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PROJECT_OWNER: ${{ github.repository_owner }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+        run: bash .qt-infra/.github/scripts/story-flow.sh

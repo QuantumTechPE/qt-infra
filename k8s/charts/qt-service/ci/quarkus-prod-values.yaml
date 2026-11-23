@@ -1,0 +1,43 @@
+# Caso de prueba del CI de qt-infra: backend Quarkus en prod (HPA, PDB, secretos,
+# archivos de configuración, métricas y reparto entre nodos).
+nameOverride: qt-backend
+environment: prod
+global:
+  ingressDomain: 10.0.30.11.nip.io
+image:
+  repository: ghcr.io/acme/qt-backend
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+  tag: v1.2.3
+replicaCount: 2
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 1Gi
+ingress:
+  subdomain: qt
+  path: /api
+secrets:
+  enabled: true
+config:
+  QUARKUS_LOG_LEVEL: INFO
+  QT_ENVIRONMENT: prod
+configFiles:
+  mountPath: /deployments/config
+  files:
+    application.properties: |
+      quarkus.log.level=INFO
+      quarkus.log.category."com.qt".level=INFO
+metrics:
+  enabled: true
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+podDisruptionBudget:
+  enabled: true
+spreadAcrossNodes: true

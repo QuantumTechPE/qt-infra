@@ -1,0 +1,120 @@
+# Interno: análisis en SonarQube (local) + Quality Gate. Corre en el runner
+# self-hosted porque SonarQube y Vault viven en la red de la plataforma.
+# El proyecto en Sonar se llama igual que el repositorio del microservicio.
+name: _sonar
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+      artifact-prefix:
+        type: string
+        default: app
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Análisis y Quality Gate
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_KEY: ${{ github.event.repository.name }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_HEAD_REF: ${{ github.head_ref }}
+      PR_BASE_REF: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Sonar necesita historial para "new code" y blame
+          persist-credentials: false
+
+      - name: Descargar cobertura (Quarkus)
+        if: inputs.stack == 'quarkus'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-prefix }}-reports
+          path: ${{ inputs.working-directory }}/target
+
+      - name: Descargar cobertura (Angular)
+        if: inputs.stack == 'angular'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-prefix }}-reports
+          path: ${{ inputs.working-directory }}/.qt-reports
+
+      - name: Token de SonarQube desde Vault
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-ci
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          secrets: |
+            secret/data/ci/sonarqube token | SONAR_TOKEN ;
+            secret/data/ci/sonarqube host_url | SONAR_HOST_URL
+
+      - name: Argumentos de Pull Request
+        run: |
+          if [[ -n "${PR_NUMBER:-}" ]]; then
+            {
+              echo "SONAR_PR_KEY=${PR_NUMBER}"
+              echo "SONAR_PR_BRANCH=${PR_HEAD_REF}"
+              echo "SONAR_PR_BASE=${PR_BASE_REF}"
+            } >> "$GITHUB_ENV"
+          fi
+
+      # ---------------------------------------------------------------- Quarkus
+      - uses: actions/setup-java@v6
+        if: inputs.stack == 'quarkus'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: ${{ inputs.working-directory }}/pom.xml
+
+      - name: Quarkus → SonarQube
+        if: inputs.stack == 'quarkus'
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          args=("-Dsonar.projectKey=${PROJECT_KEY}" "-Dsonar.projectName=${PROJECT_KEY}")
+          if [[ -n "${SONAR_PR_KEY:-}" ]]; then
+            args+=("-Dsonar.pullrequest.key=${SONAR_PR_KEY}" "-Dsonar.pullrequest.branch=${SONAR_PR_BRANCH}" "-Dsonar.pullrequest.base=${SONAR_PR_BASE}")
+          fi
+          # Recompila sin tests (Sonar necesita los .class); la cobertura viene del job de build.
+          chmod +x mvnw
+          ./mvnw -B -ntp --strict-checksums -DskipTests test-compile \
+            org.sonarsource.scanner.maven:sonar-maven-plugin:sonar "${args[@]}"
+
+      # ---------------------------------------------------------------- Angular
+      - uses: actions/setup-node@v7
+        if: inputs.stack == 'angular'
+        with:
+          node-version-file: ${{ inputs.working-directory }}/.nvmrc
+
+      - name: Angular → SonarQube
+        if: inputs.stack == 'angular'
+        uses: SonarSource/sonarqube-scan-action@v8
+        with:
+          projectBaseDir: ${{ inputs.working-directory }}
+          args: >
+            -Dsonar.projectKey=${{ github.event.repository.name }}
+            -Dsonar.projectName=${{ github.event.repository.name }}
+            -Dsonar.javascript.lcov.reportPaths=.qt-reports/lcov.info
+            ${{ github.event_name == 'pull_request' && format('-Dsonar.pullrequest.key={0} -Dsonar.pullrequest.branch={1} -Dsonar.pullrequest.base={2}', github.event.pull_request.number, github.head_ref, github.base_ref) || '' }}
+
+      - name: Resumen
+        if: always()
+        run: |
+          echo "### SonarQube: ${SONAR_HOST_URL/sonarqube/localhost}/dashboard?id=${PROJECT_KEY}" >> "$GITHUB_STEP_SUMMARY"

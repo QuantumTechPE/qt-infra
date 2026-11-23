@@ -1,0 +1,147 @@
+# Interno: promoción GitOps de una imagen a un ambiente (dev | qa | prod).
+#
+#   1. Verifica firma cosign: la imagen debe venir de qt-infra/_image.yml,
+#      construida desde la rama main de ESTE repositorio.
+#   2. Escribe el digest en qt-gitops/apps/<servicio>/<ambiente>/values.yaml
+#      (token de la GitHub App acotado solo al repo GitOps).
+#   3. Espera a que Argo CD del clúster quede Synced + Healthy.
+#      Si falla, revierte el commit GitOps (rollback automático).
+#
+# El job usa el environment de GitHub del mismo nombre: "prod" exige la
+# aprobación del team admins antes de ejecutarse.
+name: _promote
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image:
+        description: ghcr.io/<org>/<servicio>
+        type: string
+        required: true
+      digest:
+        type: string
+        required: true
+      version:
+        type: string
+        default: ""
+      wait:
+        description: Esperar a Argo CD (Synced + Healthy)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: GitOps → ${{ inputs.environment }}
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 25
+    environment:
+      name: ${{ inputs.environment }}
+    concurrency:
+      group: promote-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+    env:
+      SERVICE: ${{ github.event.repository.name }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      IMAGE: ${{ inputs.image }}
+      DIGEST: ${{ inputs.digest }}
+      VERSION: ${{ inputs.version }}
+      GITOPS_REPO: ${{ github.repository_owner }}/${{ vars.GITOPS_REPO || 'qt-gitops' }}
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Configuración del servicio (deploy/ en el commit que se despliega)
+        uses: actions/checkout@v7
+        with:
+          path: .service
+          sparse-checkout: deploy
+          persist-credentials: false
+
+      - uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Login en GHCR (paquetes privados)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verificar firma y procedencia de la imagen
+        env:
+          INFRA_REPO: ${{ job.workflow_repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Firma cosign emitida por el workflow corporativo de imágenes
+          cosign verify "${IMAGE}@${DIGEST}" \
+            --certificate-identity-regexp "^https://github\.com/${INFRA_REPO}/\.github/workflows/_image\.yml@" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          # Procedencia SLSA: construida por ese workflow, desde main de ESTE repositorio
+          gh attestation verify "oci://${IMAGE}@${DIGEST}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "${INFRA_REPO}/.github/workflows/_image.yml" \
+            --source-ref refs/heads/main > /dev/null
+          echo "🔏 Firma y procedencia válidas: ${IMAGE}@${DIGEST}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Token de la GitHub App (solo repo GitOps)
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+          vault-role: gha-promote-${{ inputs.environment }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.GITOPS_REPO || 'qt-gitops' }}
+
+      - name: Credenciales de Argo CD del ambiente (Vault)
+        if: inputs.wait
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-promote-${{ inputs.environment }}
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          secrets: |
+            secret/data/platform/argocd/${{ inputs.environment }} url | ARGOCD_URL ;
+            secret/data/platform/argocd/${{ inputs.environment }} token | ARGOCD_TOKEN
+
+      - name: Commit en GitOps (snapshot de deploy/ + imagen)
+        id: gitops
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SERVICE_DIR: .service
+        run: bash .qt-infra/.github/scripts/gitops-promote.sh promote
+
+      - name: Esperar a Argo CD (Synced + Healthy)
+        id: wait
+        if: inputs.wait
+        env:
+          APP: ${{ github.event.repository.name }}-${{ inputs.environment }}
+          REVISION: ${{ steps.gitops.outputs.revision }}
+        run: bash .qt-infra/.github/scripts/argocd-wait.sh
+
+      - name: Rollback GitOps
+        if: failure() && steps.wait.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REVISION: ${{ steps.gitops.outputs.revision }}
+        run: bash .qt-infra/.github/scripts/gitops-promote.sh revert "$REVISION"

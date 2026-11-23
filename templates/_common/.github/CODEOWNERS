@@ -1,0 +1,4 @@
+# Code owners: el team `admins` revisa todo cambio que llega a `main`.
+# (Generado por qt-infra/scripts/new-service.sh)
+*            @__GITHUB_OWNER__/admins
+/.github/    @__GITHUB_OWNER__/admins

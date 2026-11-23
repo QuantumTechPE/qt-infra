@@ -1,0 +1,30 @@
+# CI de Pull Requests. La lógica vive en __INFRA_REPO__ (plantilla corporativa):
+# build, tests, SonarQube, Semgrep, Trivy, Gitleaks, Dependency Review e imagen.
+# Check requerido por el ruleset: "CI / Gate".
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-ci.yml@main
+    with:
+      stack: __STACK__
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+      id-token: write
+      packages: write
+      attestations: write

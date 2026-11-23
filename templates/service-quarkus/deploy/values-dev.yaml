@@ -1,0 +1,23 @@
+# =============================================================================
+# qt-template-quarkus · DEV  (se despliega en cada merge a main)
+# =============================================================================
+
+# ---- Plan de recursos por pod -------------------------------------------------
+replicaCount: 1
+resources:
+  requests:            # lo que el scheduler reserva en el nodo
+    cpu: 100m
+    memory: 256Mi
+  limits:              # tope: al superar la memoria el pod se reinicia (OOMKilled)
+    cpu: 500m
+    memory: 512Mi
+
+# ---- Escalado -----------------------------------------------------------------
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+# ---- ConfigMap del ambiente → variables de entorno ----------------------------
+config: {}

@@ -1,0 +1,17 @@
+# Valores comunes a los 3 clústeres. Lo específico va en inventories/<ambiente>/hosts.yml
+k3s_version: v1.37.2+k3s1
+
+# Carpeta de secretos locales (montada en el toolbox: platform/.secrets)
+secrets_dir: /secrets
+
+# Primer control-plane: punto de entrada de la API (6443) y del Ingress
+k3s_api_endpoint: "{{ hostvars[groups['k3s_server'][0]]['ansible_host'] }}"
+
+# Token del clúster: se genera una vez y queda en platform/.secrets/k3s-<ambiente>-token
+k3s_token: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/k3s-' ~ cluster_env ~ '-token', length=48, chars=['ascii_letters', 'digits']) }}"
+
+# Nombres/IPs adicionales para el certificado de la API (p. ej. un balanceador o DNS)
+k3s_tls_san_extra: []
+
+# Instalador oficial fijado a la versión (el script verifica el SHA-256 del binario)
+k3s_install_script_url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | urlencode }}/install.sh"

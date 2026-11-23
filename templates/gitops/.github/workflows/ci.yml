@@ -1,0 +1,17 @@
+# Valida que todo lo que se mergea a main renderice y sea Kubernetes válido.
+# Check requerido: "CI / Gate".
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/gitops-ci.yml@main
