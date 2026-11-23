@@ -20,4 +20,4 @@ Closes #
 - [ ] Sin nuevas vulnerabilidades HIGH/CRITICAL (Trivy, Semgrep, CodeQL, Dependency Review)
 
 ---
-<sub>El merge es automático cuando **2 admins** aprueban y el **CI Gate** está en verde.</sub>
+<sub>El merge es automático cuando **un admin** aprueba y el **CI Gate** está en verde.</sub>

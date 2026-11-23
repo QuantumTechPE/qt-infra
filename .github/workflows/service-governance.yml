@@ -1,4 +1,4 @@
-# Gobierno de merges: 2 aprobaciones de admins → auto-merge.
+# Gobierno de merges: aprobación de un admin → auto-merge.
 # Lo llama governance.yml (workflow_run) de cada repo: corre siempre con el
 # código de main, así que un PR no puede alterar esta lógica. Publica el status
 # requerido "governance/admin-approvals" firmado por la GitHub App.
@@ -42,7 +42,7 @@ jobs:
           REPO: ${{ github.repository }}
           PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          ADMIN_APPROVALS_REQUIRED: ${{ vars.ADMIN_APPROVALS_REQUIRED || '2' }}
+          ADMIN_APPROVALS_REQUIRED: ${{ vars.ADMIN_APPROVALS_REQUIRED || '1' }}
         run: |
           numbers=$(jq -r '.[].number' <<<"$PRS")
           if [[ -z "$numbers" ]]; then

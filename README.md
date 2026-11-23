@@ -19,7 +19,7 @@ Este repo es la plataforma: workflows reutilizables, chart común, plantillas de
 | Secretos | CyberArk / Vault Enterprise | **HashiCorp Vault** (TLS, OIDC de GitHub, auth Kubernetes) |
 | Registro de artefactos | Artifactory | **GHCR** (imágenes) + **GitHub Releases** (binarios) |
 | Supply chain | Xray + firma propia | SHA-256 en cada etapa, **cosign**, **SLSA**, SBOM y **Kyverno** (solo imágenes firmadas) |
-| Gobierno | Bitbucket DC | Rulesets: `main` intocable, 2 admins y auto-merge |
+| Gobierno | Bitbucket DC | Rulesets: `main` intocable, aprobación de un admin y auto-merge |
 | Observabilidad | Datadog / Dynatrace | **Grafana + Prometheus + Loki + Alloy** en cada clúster (dev, qa, prod), con dashboard y alertas de microservicios |
 | Alta de microservicios | Backstage / tickets manuales | Workflow **Nuevo microservicio** (backend o frontend) con aprobación de admins |
 

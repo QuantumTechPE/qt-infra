@@ -17,7 +17,7 @@ Un PR malicioso puede modificar workflows, pero su token OIDC dirá `ref: refs/p
 
 ## Gobierno
 
-- `main` sin bypass en todos los repos: PR, 2 aprobaciones, code owners y checks requeridos.
+- `main` sin bypass en todos los repos: PR, aprobación de un admin, code owners y checks requeridos.
 - `governance/admin-approvals` lo emite la GitHub App, desde código de `main` (`workflow_run`).
 - En `qt-gitops` solo la App escribe directo (las promociones). La de prod ocurre únicamente tras la aprobación del environment.
 - Tags `v*` inmutables. Allowlist de actions a nivel organización.

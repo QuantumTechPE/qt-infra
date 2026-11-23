@@ -10,6 +10,11 @@
 ####
 FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
 
+# Parches del SO publicados después de la imagen base: el quality gate de Trivy
+# bloquea HIGH/CRITICAL que ya tienen corrección.
+USER root
+RUN microdnf update -y --nodocs --setopt=install_weak_deps=0 && microdnf clean all
+
 ENV LANGUAGE='en_US:en'
 
 COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/

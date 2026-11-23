@@ -110,6 +110,12 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env:
+      # Sin consultas a Maven Central para resolver poms padre/BOM: desde los
+      # runners compartidos responde 429 y bloquea la IP 30 min. Las dependencias
+      # Java (transitivas incluidas) se escanean sobre los JAR reales en el
+      # escaneo de la imagen (_image.yml).
+      TRIVY_OFFLINE_SCAN: "true"
     steps:
       - uses: actions/checkout@v7
         with:

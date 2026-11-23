@@ -185,7 +185,7 @@ git switch ${branch}
 \`\`\`
 
 Al abrir el PR usa un título [Conventional Commits](https://www.conventionalcommits.org/es/) e incluye \`Closes #${number}\`.
-El merge es automático cuando **2 admins** aprueban y el pipeline queda en verde.
+El merge es automático cuando **un admin** aprueba y el pipeline queda en verde.
 EOF
 )" >/dev/null
     log "#${number} → rama \`${branch}\` creada y vinculada"
