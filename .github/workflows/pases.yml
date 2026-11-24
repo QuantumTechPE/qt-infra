@@ -1,0 +1,63 @@
+# Agendador de pases a producción de TODOS los microservicios.
+#
+# Cada 5 minutos revisa la agenda en Vault (escrita solo tras la aprobación de
+# un admin en el environment pase-produccion) y dispara los pases cuya hora
+# llegó. El repo del servicio vuelve a validar todo antes de desplegar.
+# GitHub puede retrasar los cron unos minutos en horas de alta carga.
+name: Agendador de pases
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pases
+  cancel-in-progress: false
+
+jobs:
+  agenda:
+    name: Pases agendados
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App (organización)
+        id: app
+        uses: ./.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Token de Vault (agenda de pases)
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-pase
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+
+      - name: Disparar los pases cuya hora llegó
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+        run: |
+          export VAULT_CACERT="${RUNNER_TEMP}/vault-ca.pem"
+          base64 -d <<<"$VAULT_CA_B64" > "$VAULT_CACERT"
+          bash .github/scripts/pase-scheduler.sh

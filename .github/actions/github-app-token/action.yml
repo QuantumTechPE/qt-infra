@@ -16,7 +16,7 @@ inputs:
     description: CA de Vault en PEM codificado en base64 (vars.VAULT_CA_B64)
     required: true
   vault-role:
-    description: Rol JWT en Vault (atado a workflows concretos de qt-infra y a la rama master)
+    description: Rol JWT en Vault (atado a workflows concretos de master de qt-infra)
     required: false
     default: gha-automation
   owner:

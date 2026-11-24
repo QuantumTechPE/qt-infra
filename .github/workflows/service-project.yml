@@ -1,7 +1,8 @@
 # Historia de usuario ↔ tablero de la organización ↔ rama/PR.
 # Lo llama project.yml (issues + pull_request_target) de cada repo.
-#   Historia creada → Backlog · asignada → rama + In Progress
-#   PR abierto → In Review · mergeado → Done
+#   Historia creada → código QT-<n> + Backlog · asignada → rama qt/<n> + In Progress
+#   "/rechazar" en pruebas DEV → Rechazo DEV · PR desde qt/<n> → enlazado a la historia
+#   (los despliegues y el pase mueven el resto de carriles)
 name: service-project
 
 on:
@@ -36,10 +37,27 @@ jobs:
           vault-audience: ${{ vars.VAULT_AUDIENCE }}
           vault-ca: ${{ vars.VAULT_CA_B64 }}
 
+      # Token de Vault para el contador de códigos QT-<n> (KV con check-and-set)
+      - name: Token de Vault (códigos de historia)
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-automation
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+
       - name: Actualizar historia, rama y tablero
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPO: ${{ github.repository }}
           PROJECT_OWNER: ${{ github.repository_owner }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-        run: bash .qt-infra/.github/scripts/story-flow.sh
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+        run: |
+          export VAULT_CACERT="${RUNNER_TEMP}/vault-ca.pem"
+          base64 -d <<<"$VAULT_CA_B64" > "$VAULT_CACERT"
+          bash .qt-infra/.github/scripts/story-flow.sh

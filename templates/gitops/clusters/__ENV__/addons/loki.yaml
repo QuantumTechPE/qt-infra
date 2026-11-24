@@ -39,6 +39,8 @@ spec:
             delete_request_store: filesystem
         singleBinary:
           replicas: 1
+          # Recursos de este ambiente: ver docs/recursos.md de qt-infra
+          resources: __R_LOKI__
           persistence:
             enabled: true
             size: __LOKI_STORAGE__

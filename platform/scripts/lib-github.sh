@@ -93,19 +93,33 @@ JSON
   fi
 
   if [[ "$kind" == "service" ]]; then
-    for env in dev qa; do
+    gh label create "pase" --color "b60205" --description "Pase a producción (lo abre el congelamiento)" --repo "$repo" --force >/dev/null
+
+    # dev: SOLO ramas de historia (qt/*). Sin historia no hay despliegue.
+    gh api -X PUT "repos/${repo}/environments/dev" --input - >/dev/null <<'JSON'
+{ "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+JSON
+    if ! gh api "repos/${repo}/environments/dev/deployment-branch-policies" \
+      --jq '.branch_policies[].name' | grep -qx 'qt/\*'; then
+      gh api -X POST "repos/${repo}/environments/dev/deployment-branch-policies" \
+        -f name='qt/*' -f type=branch >/dev/null
+    fi
+
+    # qa y prod: solo master. La aprobación de producción se da al AGENDAR el
+    # pase (pase-produccion); la ejecución a la hora agendada es automática.
+    for env in qa prod; do
       gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<'JSON'
-{ "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false } }
+{ "reviewers": [], "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false } }
 JSON
     done
-    gh api -X PUT "repos/${repo}/environments/prod" --input - >/dev/null <<JSON
+    gh api -X PUT "repos/${repo}/environments/pase-produccion" --input - >/dev/null <<JSON
 {
-  "prevent_self_review": true,
+  "prevent_self_review": false,
   "reviewers": [ { "type": "Team", "id": $(admins_team_id) } ],
   "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false }
 }
 JSON
-    ok "  environments: dev, qa (automáticos) y prod (aprobación del team admins)"
+    ok "  environments: dev (ramas qt/*), qa y prod (master) y pase-produccion (aprobación del team admins)"
   fi
 
   if [[ -n "${PROJECT_NUMBER:-}" ]]; then

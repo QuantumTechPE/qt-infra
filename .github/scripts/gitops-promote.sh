@@ -46,16 +46,25 @@ push_with_retry() {
 
 case "$action" in
   promote)
-    : "${IMAGE:?}" "${DIGEST:?}"
-    [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Digest inválido: $DIGEST"; exit 1; }
+    # DIGEST vacío = RETIRO: la reversión de un servicio que aún no tenía
+    # versión en el ambiente (el chart no renderiza nada sin digest).
+    if [[ -n "${DIGEST:-}" ]]; then
+      : "${IMAGE:?}"
+      [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Digest inválido: $DIGEST"; exit 1; }
+    else
+      IMAGE=""
+      VERSION="retiro"
+    fi
     file="apps/${SERVICE}/${ENVIRONMENT}/values.yaml"
     if [[ ! -f "$file" ]]; then
       echo "::error::${file} no existe en ${GITOPS_REPO}: el servicio no está dado de alta (qt-infra/scripts/new-service.sh)"
       exit 1
     fi
-    export IMAGE DIGEST
-    export TAG="${VERSION:-sha-${GITHUB_SHA:0:7}}"
-    export SOURCE="${GITHUB_REPOSITORY:-${SERVICE}}@${GITHUB_SHA:-local}"
+    # Commit cuyo deploy/ se despliega (la reversión usa el de la versión que restaura)
+    src="${SOURCE_SHA:-${GITHUB_SHA:-local}}"
+    export IMAGE DIGEST="${DIGEST:-}"
+    export TAG="${VERSION:-sha-${src:0:7}}"
+    export SOURCE="${GITHUB_REPOSITORY:-${SERVICE}}@${src}"
     bash "${scripts_dir}/compose-values.sh" "$SERVICE_DIR" "$ENVIRONMENT" "$file"
 
     if git diff --quiet; then
@@ -65,7 +74,7 @@ case "$action" in
     fi
 
     git commit --quiet -am "deploy(${SERVICE}): ${ENVIRONMENT} → ${TAG}" \
-      -m "Imagen: ${IMAGE}@${DIGEST}" \
+      -m "Imagen: ${IMAGE:-(retiro)}${DIGEST:+@${DIGEST}}" \
       -m "Pipeline: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-local}/actions/runs/${GITHUB_RUN_ID:-0}"
     push_with_retry
     revision="$(git rev-parse HEAD)"

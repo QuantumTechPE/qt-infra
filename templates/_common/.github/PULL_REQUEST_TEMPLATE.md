@@ -1,7 +1,7 @@
 ## Historia / requerimiento
 
-<!-- OBLIGATORIO: vincula la historia. Al mergear se cierra y pasa a "Done" en el tablero. -->
-Closes #
+<!-- La historia se enlaza sola por la rama qt/<n> (código QT-<n>). No la cierres aquí:
+     se cierra al RATIFICAR el pase en producción. -->
 
 ## ¿Qué cambia?
 

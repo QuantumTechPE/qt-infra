@@ -1,7 +1,6 @@
 ## Historia / requerimiento
 
-<!-- OBLIGATORIO: vincula la historia. Al mergear se cierra y pasa a "Done" en el tablero. -->
-Closes #
+<!-- Opcional: historia o pase relacionado (QT-<n> o #<issue>). -->
 
 ## ¿Qué cambia?
 

@@ -27,13 +27,24 @@ spec:
           enabled: false
         kubeProxy:
           enabled: false
+        # ── Recursos (CPU/RAM) de este ambiente: ver docs/recursos.md de qt-infra.
+        #    requests = lo que se reserva · limits.memory = tope antes de reiniciar el pod.
         kube-state-metrics:
+          resources: __R_KSM__
           # Etiquetas usadas por el dashboard y las alertas de la plataforma
           metricLabelsAllowlist:
             - deployments=[app.kubernetes.io/part-of]
             - namespaces=[qt.platform/managed]
+        prometheus-node-exporter:
+          resources: __R_NODE_EXPORTER__
+        prometheusOperator:
+          resources: __R_PROM_OPERATOR__
+        alertmanager:
+          alertmanagerSpec:
+            resources: __R_ALERTMANAGER__
         prometheus:
           prometheusSpec:
+            resources: __R_PROMETHEUS__
             retention: __PROM_RETENTION__
             externalLabels:
               environment: __ENV__
@@ -49,6 +60,7 @@ spec:
                     requests:
                       storage: __PROM_STORAGE__
         grafana:
+          resources: __R_GRAFANA__
           admin:
             existingSecret: grafana-admin
             userKey: admin-user
@@ -60,6 +72,7 @@ spec:
               - grafana.__INGRESS_DOMAIN__
           defaultDashboardsTimezone: browser
           sidecar:
+            resources: __R_GRAFANA_SIDECAR__
             dashboards:
               enabled: true
               label: grafana_dashboard

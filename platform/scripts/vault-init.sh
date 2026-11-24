@@ -90,14 +90,30 @@ write_role() {
 write_role gha-ci "ci-read" string \
   "$(jq -n --arg o "$GITHUB_OWNER" '{repository_owner: $o}')"
 
-write_role gha-automation "automation" string \
+# Automatización (gobierno, tablero, CD y pases). El código lo fija
+# job_workflow_ref (workflows de master de qt-infra); el ref del repo puede ser
+# master o una rama de historia qt/<n> (tablero del despliegue en DEV).
+write_role gha-automation "automation" glob \
+  "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" '{
+      repository_owner: $o,
+      ref: ["refs/heads/master", "refs/heads/qt/*"],
+      job_workflow_ref: [
+        "\($w)/service-governance.yml@refs/heads/master",
+        "\($w)/service-project.yml@refs/heads/master",
+        "\($w)/service-cd.yml@refs/heads/master",
+        "\($w)/service-pase.yml@refs/heads/master",
+        "\($w)/pases.yml@refs/heads/master"
+      ]}')"
+
+# Agenda de pases a producción: la escribe solo la aprobación de un admin
+# (environment pase-produccion); la leen el agendador y la ejecución del pase.
+write_role gha-pase "pase" string \
   "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" '{
       repository_owner: $o,
       ref: "refs/heads/master",
       job_workflow_ref: [
-        "\($w)/service-governance.yml@refs/heads/master",
-        "\($w)/service-project.yml@refs/heads/master",
-        "\($w)/service-cd.yml@refs/heads/master"
+        "\($w)/service-pase.yml@refs/heads/master",
+        "\($w)/pases.yml@refs/heads/master"
       ]}')"
 
 # Workflow "Nuevo microservicio" (aprobado por admins en el environment provisioning)
@@ -108,11 +124,14 @@ write_role gha-provision "automation,provision" string \
       environment: "provisioning",
       job_workflow_ref: "\($w)/new-service.yml@refs/heads/master"}')"
 
+# Promoción: DEV solo desde ramas de historia (qt/<n>); QA y PROD solo desde master.
 for env in "${ENVIRONMENTS[@]}"; do
+  ref="refs/heads/master"
+  [[ "$env" == "dev" ]] && ref="refs/heads/qt/*"
   write_role "gha-promote-${env}" "promote-${env}" glob \
-    "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" --arg e "$env" '{
+    "$(jq -n --arg o "$GITHUB_OWNER" --arg w "$WF" --arg e "$env" --arg r "$ref" '{
         repository_owner: $o,
-        ref: "refs/heads/master",
+        ref: $r,
         environment: $e,
         job_workflow_ref: "\($w)/_promote.yml@*"}')"
 done

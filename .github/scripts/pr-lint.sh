@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # PR Lint: valida las convenciones que hacen funcionar la automatización.
-#   1. Título en Conventional Commits  → define la próxima versión (release-please)
-#   2. Rama <tipo>/<issue>-<slug>       → trazabilidad historia ↔ código
-#   3. "Closes #N" en la descripción    → mueve la historia en el tablero
-# Bots (Dependabot, release-please) quedan exentos de 2 y 3.
+#   1. Título en Conventional Commits  → define la próxima versión del congelamiento
+#   2. Rama qt/<n>                     → la historia QT-<n> (sin historia no hay cambio)
+#   3. La historia QT-<n> existe y está abierta en este repo
+# El PR no cierra la historia: se cierra al ratificar el pase en producción.
+# Bots (Dependabot, GitHub App) quedan exentos de 2 y 3.
 #
 # Entradas (variables de entorno, NUNCA interpoladas en el script):
-#   PR_TITLE, PR_BODY, PR_HEAD_REF, PR_AUTHOR
+#   PR_TITLE, PR_HEAD_REF, PR_AUTHOR, REQUIRE_ISSUE, GH_TOKEN, REPO
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
 : "${PR_TITLE:?PR_TITLE requerido}"
 : "${PR_HEAD_REF:?PR_HEAD_REF requerido}"
 : "${PR_AUTHOR:?PR_AUTHOR requerido}"
-PR_BODY="${PR_BODY:-}"
+# shellcheck source=lib-project.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-project.sh"
 
 errors=()
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
@@ -28,31 +30,27 @@ fi
 
 is_bot=false
 [[ "$PR_AUTHOR" == *"[bot]" ]] && is_bot=true
-is_release=false
-[[ "$PR_HEAD_REF" == release-please--* ]] && is_release=true
 # REQUIRE_ISSUE=false (repo GitOps): solo se valida el título.
 require_issue="${REQUIRE_ISSUE:-true}"
 
-if [[ "$is_bot" == false && "$is_release" == false && "$require_issue" == "true" ]]; then
-  # 2. Nombre de rama
-  branch_re='^(feature|fix|hotfix|chore|docs|refactor|test|ci|perf)/[0-9]+-[a-z0-9._-]+$'
-  if [[ ! "$PR_HEAD_REF" =~ $branch_re ]]; then
-    errors+=("La rama \`${PR_HEAD_REF}\` no cumple \`<tipo>/<n°-issue>-<slug>\` (p. ej. \`feature/42-exportar-csv\`). Asígnate la historia y el pipeline la crea por ti.")
+if [[ "$is_bot" == false && "$require_issue" == "true" ]]; then
+  code="$(code_from_branch "$PR_HEAD_REF")"
+  if [[ -z "$code" ]]; then
+    # 2. Rama de la historia
+    errors+=("La rama \`${PR_HEAD_REF}\` no es de una historia: usa \`qt/<n>\` (la crea el pipeline al asignarte la historia ${STORY_PREFIX}-<n>).")
+  else
+    # 3. Historia abierta
+    : "${GH_TOKEN:?}" "${REPO:?}"
+    if [[ -z "$(story_by_code "$REPO" "$code" open)" ]]; then
+      errors+=("No existe una historia abierta **${STORY_PREFIX}-${code}** en ${REPO}: sin historia no hay cambio.")
+    fi
   fi
-
-  # 3. Vínculo a la historia
-  shopt -s nocasematch
-  link_re='(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+'
-  if [[ ! "$PR_BODY" =~ $link_re ]]; then
-    errors+=("La descripción debe vincular la historia con \`Closes #<n°>\`.")
-  fi
-  shopt -u nocasematch
 fi
 
 {
   echo "## PR Lint"
   if ((${#errors[@]} == 0)); then
-    echo "✅ Título, rama y vínculo a la historia correctos."
+    echo "✅ Título, rama e historia correctos."
   else
     for e in "${errors[@]}"; do echo "- ❌ $e"; done
   fi

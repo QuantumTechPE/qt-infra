@@ -1,14 +1,16 @@
 # Interno: promoción GitOps de una imagen a un ambiente (dev | qa | prod).
 #
 #   1. Verifica firma cosign: la imagen debe venir de qt-infra/_image.yml,
-#      construida desde la rama master de ESTE repositorio.
+#      construida desde la rama de ESTE run (qt/<n> en DEV, master en QA/PROD).
+#      Digest vacío = RETIRO (reversión de un servicio que aún no tenía versión).
 #   2. Escribe el digest en qt-gitops/apps/<servicio>/<ambiente>/values.yaml
 #      (token de la GitHub App acotado solo al repo GitOps).
 #   3. Espera a que Argo CD del clúster quede Synced + Healthy.
 #      Si falla, revierte el commit GitOps (rollback automático).
 #
-# El job usa el environment de GitHub del mismo nombre: "prod" exige la
-# aprobación del team admins antes de ejecutarse.
+# El job usa el environment de GitHub del mismo nombre (dev solo acepta ramas
+# qt/*; qa y prod solo master). La aprobación de producción se da al agendar el
+# pase (environment pase-produccion), no aquí.
 name: _promote
 
 on:
@@ -22,8 +24,13 @@ on:
         type: string
         required: true
       digest:
+        description: sha256:... (vacío = retiro del servicio)
         type: string
-        required: true
+        default: ""
+      ref:
+        description: Commit cuyo deploy/ se despliega (por defecto, el del run)
+        type: string
+        default: ""
       version:
         type: string
         default: ""
@@ -70,6 +77,7 @@ jobs:
       - name: Configuración del servicio (deploy/ en el commit que se despliega)
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || github.sha }}
           path: .service
           sparse-checkout: deploy
           persist-credentials: false
@@ -84,6 +92,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verificar firma y procedencia de la imagen
+        if: inputs.digest != ''
         env:
           INFRA_REPO: ${{ job.workflow_repository }}
           GH_TOKEN: ${{ github.token }}
@@ -92,11 +101,11 @@ jobs:
           cosign verify "${IMAGE}@${DIGEST}" \
             --certificate-identity-regexp "^https://github\.com/${INFRA_REPO}/\.github/workflows/_image\.yml@" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
-          # Procedencia SLSA: construida por ese workflow, desde master de ESTE repositorio
+          # Procedencia SLSA: construida por ese workflow, desde la rama de ESTE run
           gh attestation verify "oci://${IMAGE}@${DIGEST}" \
             --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "${INFRA_REPO}/.github/workflows/_image.yml" \
-            --source-ref refs/heads/master > /dev/null
+            --source-ref "${GITHUB_REF}" > /dev/null
           echo "🔏 Firma y procedencia válidas: ${IMAGE}@${DIGEST}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Token de la GitHub App (solo repo GitOps)
@@ -129,6 +138,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           SERVICE_DIR: .service
+          SOURCE_SHA: ${{ inputs.ref || github.sha }}
         run: bash .qt-infra/.github/scripts/gitops-promote.sh promote
 
       - name: Esperar a Argo CD (Synced + Healthy)

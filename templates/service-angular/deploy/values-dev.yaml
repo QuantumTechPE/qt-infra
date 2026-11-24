@@ -1,5 +1,5 @@
 # =============================================================================
-# qt-template-angular · DEV  (se despliega en cada merge a master)
+# qt-template-angular · DEV  (se despliega con cada push a la rama de la historia qt/<n>)
 # =============================================================================
 
 # ---- Plan de recursos por pod -------------------------------------------------

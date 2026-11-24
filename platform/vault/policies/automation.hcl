@@ -4,3 +4,8 @@
 path "secret/data/platform/github-app" {
   capabilities = ["read"]
 }
+
+# Contador correlativo de códigos de historia QT-<n> (check-and-set)
+path "secret/data/platform/story-seq" {
+  capabilities = ["create", "read", "update"]
+}

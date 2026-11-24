@@ -2,7 +2,7 @@
 # microservicio nuevo nace con dependencias vigentes (los repos de micros traen
 # su propio dependabot.yml).
 # Los títulos usan Conventional Commits para que pasen el "PR Lint" y entren
-# al changelog de release-please. Igual requieren la aprobación de un admin.
+# a las notas del release (congelamiento). Igual requieren la aprobación de un admin.
 version: 2
 updates:
   - package-ecosystem: maven
@@ -32,6 +32,11 @@ updates:
         patterns: ["@angular/*", "@angular-devkit/*"]
       testing:
         patterns: ["vitest", "@vitest/*", "jsdom"]
+    # Angular fija el rango de TypeScript (22.x: >=6.0 <6.1). Se actualiza junto con
+    # Angular (ng update), nunca por separado.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /

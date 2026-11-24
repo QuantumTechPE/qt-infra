@@ -101,6 +101,8 @@ Mientras no tengas servidores, `k8s-local` crea cada clúster como contenedores 
 
 Descarga k3d 5.9.0 en `platform/.bin` y verifica su SHA-256. Deja `platform/.secrets/kubeconfig-<ambiente>` y completa en `.env` `INGRESS_DOMAIN_<AMBIENTE>=<ambiente>.<PLATFORM_HOST>.nip.io` e `INGRESS_PORT_<AMBIENTE>`. Las URLs quedan como `http://grafana.dev.192.168.18.47.nip.io:8081`. También agrega los contextos `k3d-qt-<ambiente>` a tu `~/.kube/config`.
 
+Para pasar al servidor definitivo, sigue [levantamiento.md](levantamiento.md).
+
 Ten en cuenta:
 - Los 3 clústeres con su observabilidad usan unos 9-10 GB de RAM, sumados a SonarQube (~3 GB). Si Docker se queda corto, detén SonarQube mientras no analices (`docker stop qt-sonarqube`).
 - Si cambia la IP de la PC, cambia `PLATFORM_HOST` y los `INGRESS_DOMAIN_*`, y vuelve a ejecutar `qt up` y `gitops-render`.
