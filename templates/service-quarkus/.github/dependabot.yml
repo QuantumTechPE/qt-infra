@@ -6,6 +6,10 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # Espera 7 días desde la publicación antes de proponer una versión: da tiempo a
+    # detectar y retirar paquetes comprometidos (ataques a la cadena de suministro).
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "build(deps)"
     labels: ["dependencies"]
@@ -18,6 +22,10 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Espera 7 días desde la publicación antes de proponer una versión: da tiempo a
+    # detectar y retirar paquetes comprometidos (ataques a la cadena de suministro).
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "build(docker)"
     labels: ["dependencies"]
@@ -27,6 +35,10 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Espera 7 días desde la publicación antes de proponer una versión: da tiempo a
+    # detectar y retirar paquetes comprometidos (ataques a la cadena de suministro).
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci(deps)"
     labels: ["dependencies"]

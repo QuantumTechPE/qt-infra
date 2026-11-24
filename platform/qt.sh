@@ -113,14 +113,22 @@ EOF
     esac
     command -v k3d >/dev/null || die "Instala k3d v5.9.0 (https://k3d.io) y vuelve a ejecutar"
     name="qt-${env}"
+    # Tope de RAM POR NODO (el clúster local tiene 2 nodos: server + agent). Vacío =
+    # sin tope. Solo al CREAR: k3d informa ese tope a Kubernetes (capacidad del nodo).
+    # Un tope aplicado después o un tope de CPU quedan ocultos para Kubernetes y
+    # desestabilizan el clúster. Para cambiarlo: borrar el clúster y crearlo de nuevo.
+    mem_var="LOCAL_NODE_MEMORY_${env^^}"
+    node_memory="${!mem_var:-}"
     if k3d cluster get "$name" >/dev/null 2>&1; then
-      info "El clúster ${name} ya existe"
+      info "El clúster ${name} ya existe (el tope de RAM solo se aplica al crearlo)"
     else
-      info "Creando clúster ${name} (Ingress en el puerto ${port})"
+      info "Creando clúster ${name} (Ingress en el puerto ${port}; RAM por nodo: ${node_memory:-sin tope})"
+      memory_args=()
+      [[ -n "$node_memory" ]] && memory_args=(--servers-memory "$node_memory" --agents-memory "$node_memory")
       k3d cluster create "$name" --network qt-platform --image rancher/k3s:v1.37.2-k3s1 \
         --servers 1 --agents 1 --k3s-arg "--tls-san=k3d-${name}-server-0@server:0" \
         --api-port "127.0.0.1:${api}" -p "${port}:80@loadbalancer" \
-        --kubeconfig-switch-context=false --wait --timeout 300s
+        --kubeconfig-switch-context=false --wait --timeout 300s "${memory_args[@]}"
     fi
     k3d kubeconfig get "$name" |
       sed "s|server: https://.*|server: https://k3d-${name}-server-0:6443|" >".secrets/kubeconfig-${env}"

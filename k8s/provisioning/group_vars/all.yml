@@ -15,3 +15,14 @@ k3s_tls_san_extra: []
 
 # Instalador oficial fijado a la versión (el script verifica el SHA-256 del binario)
 k3s_install_script_url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | urlencode }}/install.sh"
+
+# ── Tope y reserva de cada nodo (docs/recursos.md) ─────────────────────────────
+# El tope de un clúster es la suma de la CPU/RAM de sus nodos (tamaño de cada VM).
+# De cada nodo se RESERVA esto para el sistema operativo y k3s: los pods nunca lo
+# pueden usar, así que una carga alta no deja sin recursos al nodo.
+# Se sobrescribe por ambiente en inventories/<ambiente>/hosts.yml (all.vars).
+k3s_system_reserved: "cpu=250m,memory=512Mi"
+k3s_kube_reserved: "cpu=250m,memory=512Mi"
+# Si la memoria libre del nodo baja de esto, kubelet desaloja pods antes de que
+# el sistema operativo se quede sin memoria.
+k3s_eviction_hard: "memory.available<300Mi,nodefs.available<10%"

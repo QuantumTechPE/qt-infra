@@ -10,6 +10,11 @@ tls-san:
 {% endfor %}
 node-label:
   - "qt.platform/environment={{ cluster_env }}"
+# Reserva para el sistema operativo y k3s (group_vars/all.yml o el inventario)
+kubelet-arg:
+  - "system-reserved={{ k3s_system_reserved }}"
+  - "kube-reserved={{ k3s_kube_reserved }}"
+  - "eviction-hard={{ k3s_eviction_hard }}"
 {% if groups['k3s_server'] | length > 1 %}
 {% if inventory_hostname == groups['k3s_server'][0] %}
 # Primer control-plane: inicializa etcd embebido (HA)
