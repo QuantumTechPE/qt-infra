@@ -14,6 +14,17 @@ spec:
     targetRevision: 3.10.0
     helm:
       releaseName: kyverno
+      # Recursos de este ambiente: ver docs/recursos.md de qt-infra
+      valuesObject:
+        admissionController:
+          container:
+            resources: __R_KYVERNO_ADMISSION__
+        backgroundController:
+          resources: __R_KYVERNO_CONTROLLER__
+        cleanupController:
+          resources: __R_KYVERNO_CONTROLLER__
+        reportsController:
+          resources: __R_KYVERNO_CONTROLLER__
   destination:
     server: https://kubernetes.default.svc
     namespace: kyverno

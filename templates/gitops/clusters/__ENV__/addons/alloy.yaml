@@ -21,6 +21,8 @@ spec:
           replicas: 1
         alloy:
           enableReporting: false
+          # Recursos de este ambiente: ver docs/recursos.md de qt-infra
+          resources: __R_ALLOY__
           configMap:
             content: |
               discovery.kubernetes "pods" {

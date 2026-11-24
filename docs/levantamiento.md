@@ -48,7 +48,7 @@ No cambian: `GITHUB_OWNER`, `GITHUB_APP_LOGIN`, `GOVERNANCE_APP_ID`, `ADMIN_APPR
 | k3s (API, controladores, datastore) y containerd | ~300m | ~1,5–2 GB |
 | **Total base** | **~0,5 vCPU** | **~4–4,5 GB** |
 
-A esa base se suman los microservicios con su plan de recursos (`deploy/values-<env>.yaml`). Por ejemplo, un backend en prod pide 500m/512 Mi por réplica y puede llegar a 1,5 vCPU/1 GiB, con HPA de 2 a 6 réplicas. Tamaño sugerido para empezar:
+A esa base se suman los microservicios con su plan de recursos (`deploy/values-<env>.yaml`). Dónde cambiar cada valor, por ambiente: [recursos.md](recursos.md). Por ejemplo, un backend en prod pide 500m/512 Mi por réplica y puede llegar a 1,5 vCPU/1 GiB, con HPA de 2 a 6 réplicas. Tamaño sugerido para empezar:
 
 | Ambiente | Nodos sugeridos |
 |---|---|

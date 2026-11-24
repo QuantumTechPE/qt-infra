@@ -98,10 +98,34 @@ ok "Vault: auth/k8s-${env} → secret/apps/*/${env}"
 
 # ------------------------------------------------------------ 2. Argo CD
 info "Instalando Argo CD (chart ${ARGOCD_CHART_VERSION}) en argocd.${domain}"
+# Recursos de Argo CD por ambiente (docs/recursos.md):
+#   res <request CPU> <request memoria> <límite de memoria>
+res() { printf '{requests: {cpu: %s, memory: %s}, limits: {memory: %s}}' "$1" "$2" "$3"; }
+case "$env" in
+  prod)
+    argo_controller="$(res 250m 768Mi 1536Mi)"
+    argo_repo="$(res 50m 256Mi 1Gi)"
+    argo_server="$(res 20m 128Mi 512Mi)"
+    ;;
+  *)
+    argo_controller="$(res 100m 512Mi 1Gi)"
+    argo_repo="$(res 20m 128Mi 512Mi)"
+    argo_server="$(res 10m 64Mi 256Mi)"
+    ;;
+esac
+argo_small="$(res 10m 64Mi 128Mi)"
 values="$(mktemp)"
 cat >"$values" <<EOF
 global:
   domain: ${argocd_host}
+controller:
+  resources: ${argo_controller}
+repoServer:
+  resources: ${argo_repo}
+applicationSet:
+  resources: ${argo_small}
+redis:
+  resources: ${argo_small}
 configs:
   params:
     server.insecure: true
@@ -115,6 +139,7 @@ configs:
       p, role:ci-readonly, applications, get, */*, allow
       g, ci, role:ci-readonly
 server:
+  resources: ${argo_server}
   ingress:
     enabled: true
     ingressClassName: traefik
