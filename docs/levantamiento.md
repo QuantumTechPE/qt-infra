@@ -38,6 +38,24 @@ No cambian: `GITHUB_OWNER`, `GITHUB_APP_LOGIN`, `GOVERNANCE_APP_ID`, `ADMIN_APPR
 | **Servidor de plataforma** | Linux (Ubuntu 22.04/24.04 o similar), Docker Engine con el plugin compose, git y curl. Recomendado: 4 vCPU, 8 GB de RAM, 60 GB de disco. SonarQube usa unos 3 GB de RAM |
 | **Servidores k3s** (por ambiente) | Linux con systemd y un usuario con `sudo` sin contraseña. Mínimo 1 nodo por ambiente; prod, recomendado 3 control-plane. Disco para métricas y logs: dev 20 GB, qa 40 GB y prod 100 GB |
 
+**Dimensionamiento de cada clúster.** Medido en el servidor de pruebas, solo la base de la plataforma, sin microservicios:
+
+| Componente (por clúster) | CPU | RAM |
+|---|---|---|
+| Observabilidad (Prometheus, Grafana, Loki, Alloy) | ~100m | ~1,6 GB |
+| Argo CD | ~20m | ~0,5 GB |
+| Kyverno + External Secrets + kube-system | ~40m | ~0,45 GB |
+| k3s (API, controladores, datastore) y containerd | ~300m | ~1,5–2 GB |
+| **Total base** | **~0,5 vCPU** | **~4–4,5 GB** |
+
+A esa base se suman los microservicios con su plan de recursos (`deploy/values-<env>.yaml`). Por ejemplo, un backend en prod pide 500m/512 Mi por réplica y puede llegar a 1,5 vCPU/1 GiB, con HPA de 2 a 6 réplicas. Tamaño sugerido para empezar:
+
+| Ambiente | Nodos sugeridos |
+|---|---|
+| dev | 1 nodo · 2 vCPU · 8 GB |
+| qa | 1 nodo · 4 vCPU · 8 GB |
+| prod | 3 nodos · 4 vCPU · 8 GB (alta disponibilidad) |
+
 **Red:**
 
 | Desde | Hacia | Puerto | Para |
