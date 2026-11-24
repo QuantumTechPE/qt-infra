@@ -86,7 +86,19 @@ issue_opened() {
     code="$(next_code)"
     clean="$(sed -E 's/^(\[[^]]*\][[:space:]]*)+//' <<<"$title")"
     gh api -X PATCH "repos/${REPO}/issues/${number}" -f title="[${STORY_PREFIX}-${code}] ${clean}" >/dev/null
-    comment "$REPO" "$number" "🏷️ Código **${STORY_PREFIX}-${code}** · al asignarla se crea la rama \`qt/${code}\`."
+    comment "$REPO" "$number" "$(cat <<EOF
+🏷️ Código **${STORY_PREFIX}-${code}** · al asignarla se crea la rama \`qt/${code}\`.
+
+| Para… | Haz esto | Carril |
+|---|---|---|
+| Desplegar en DEV | \`git push\` a \`qt/${code}\` | Despliegue DEV → Pruebas DEV |
+| Rechazar en pruebas DEV | Comenta aquí \`/rechazar <motivo>\` | Rechazo DEV |
+| Llevar a QA | PR \`qt/${code}\` → \`master\` aprobado por un admin | Congelamiento → Pruebas QA |
+| Pasar a producción | En el **issue de pase** que abre el congelamiento: \`/rechazar\`, \`/agendar AAAA-MM-DD HH:MM\`, \`/ratificar\`, \`/revertir\` | Gestión de pase → … → Done |
+
+Los carriles los mueve la plataforma; arrastrar la tarjeta no despliega nada.
+EOF
+)"
     log "#${number} → código **${STORY_PREFIX}-${code}**"
   fi
 
