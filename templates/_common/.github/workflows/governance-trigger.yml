@@ -1,6 +1,6 @@
 # Disparador liviano del gobierno de merges (sin permisos ni secretos).
 # Su única función es activar governance.yml, que corre con el código de master.
-name: Governance Trigger
+name: Auto · Gobierno (evento)
 
 on:
   pull_request:

@@ -42,6 +42,16 @@ set_status() {
   echo "Status ${CONTEXT}=${st}: ${desc}"
 }
 
+# Gate "deploy/dev" (repos de microservicio): lo publica CICD DEV cuando el último
+# commit de la rama qt/<n> quedó desplegado y Healthy en DEV. Los PRs automáticos
+# (Dependabot, GitHub App) no tienen historia ni rama qt/<n>: quedan exentos.
+head_ref="$(jq -r '.head.ref' <<<"$pr")"
+if [[ "$author" == *"[bot]" && ! "$head_ref" =~ ^qt/[0-9]+$ ]]; then
+  gh api -X POST "repos/${REPO}/statuses/${head_sha}" -f state=success -f context="deploy/dev" \
+    -f description="No aplica: PR automático (${author}) sin historia" -f target_url="$html_url" >/dev/null
+  echo "Status deploy/dev=success (PR automático exento)"
+fi
+
 if [[ "$draft" == "true" ]]; then
   set_status pending "PR en borrador: márcalo como listo para revisión"
   exit 0

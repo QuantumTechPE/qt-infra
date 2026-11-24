@@ -1,6 +1,6 @@
 # CodeQL (SAST semántico; gratis en repos públicos). El ruleset de master exige
 # que no haya alertas de seguridad HIGH o superiores.
-name: CodeQL
+name: Auto · CodeQL
 
 on:
   pull_request:

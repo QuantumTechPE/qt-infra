@@ -140,6 +140,10 @@ JSON
       else
         warn "  'required reviewers' por team no disponible: lo cubre el check governance/admin-approvals"
       fi
+      if [[ "$kind" == "service" ]]; then
+        apply_ruleset "$repo" .github/rulesets/master-desplegado-dev.json
+        ok "  ruleset master-desplegado-dev (solo se mergea si el último commit de la rama se desplegó en DEV y quedó Healthy)"
+      fi
       ;;
   esac
 }

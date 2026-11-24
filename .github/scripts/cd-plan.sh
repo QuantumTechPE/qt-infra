@@ -13,15 +13,25 @@
 set -euo pipefail
 
 : "${GH_TOKEN:?}" "${REPO:?}" "${REF_NAME:?}" "${DEFAULT_BRANCH:?}"
+EXPECTED_CHANNEL="${EXPECTED_CHANNEL:-}"
 # shellcheck source=lib-project.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib-project.sh"
 out="${GITHUB_OUTPUT:-/dev/stdout}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
 if [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+  if [[ "$EXPECTED_CHANNEL" == "dev" ]]; then
+    echo "::error::CICD DEV no corre sobre ${DEFAULT_BRANCH}: usa una rama de historia qt/<n> (${DEFAULT_BRANCH} va por CICD QA)."
+    exit 1
+  fi
   echo "channel=freeze" >>"$out"
   echo "### ${DEFAULT_BRANCH} → congelamiento en QA y pase a producción" >>"$summary"
   exit 0
+fi
+
+if [[ "$EXPECTED_CHANNEL" == "freeze" ]]; then
+  echo "::error::CICD QA solo corre sobre ${DEFAULT_BRANCH} (la rama '${REF_NAME}' va por CICD DEV)."
+  exit 1
 fi
 
 code="$(code_from_branch "$REF_NAME")"

@@ -48,6 +48,33 @@ Convenciones (check "PR Lint / Convenciones"):
 - Título en Conventional Commits: `feat:` → minor, `fix:` → patch, `feat!:` → major (minor mientras la versión sea `0.x`).
 - Rama `qt/<n>` de una historia **abierta** del mismo repo. El PR no cierra la historia: la cierra la ratificación.
 
+## Workflows de cada microservicio
+
+| Workflow | Se ejecuta | Qué hace |
+|---|---|---|
+| **CI** | Cada PR a `master` | Build, tests, Sonar, Semgrep, Trivy, Gitleaks, Dependency Review, imagen y validación de `deploy/` |
+| **CICD DEV** | Push a `qt/<n>` (historia abierta) | Lo mismo + imagen firmada → **DEV**. Marca el commit con `deploy/dev` |
+| **CICD QA** | Merge a `master` | **Congelamiento**: release del cambio y de reversión → QA congela, revierte y recongela → issue de pase |
+| **CICD PROD** | `/agendar`, `/ratificar` en el issue de pase, y la ejecución agendada | Aprobación del admin, despliegue a **producción** a la hora agendada, release final `vX.Y.Z` |
+| **Reversión QA** | `/rechazar` en el issue de pase | Descarta el release y QA vuelve a lo que corre en producción |
+| **Reversión PROD** | `/revertir` en el issue de pase (solo admins) | Producción vuelve a la versión anterior con el release de reversión |
+| Auto · Gobierno, Auto · Tablero, Auto · CodeQL, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero, análisis de código y convenciones |
+
+## Qué hace falta para mergear a `master`
+
+El merge es automático cuando se cumple **todo** esto; la aprobación del admin sola no alcanza:
+
+| Requisito | Check |
+|---|---|
+| CI en verde | `CI / Gate` |
+| Título y rama de una historia abierta | `PR Lint / Convenciones` |
+| Aprobación de un admin | `governance/admin-approvals` |
+| **El último commit de la rama se desplegó en DEV y quedó Healthy** | `deploy/dev` (lo publica CICD DEV con la GitHub App) |
+| Rama al día con `master` | Si `master` avanzó, hay que actualizar la rama, y ese commit nuevo vuelve a pasar por DEV |
+| Sin alertas de seguridad altas o críticas | Code scanning (CodeQL) |
+
+`deploy/dev` se pierde con cada push nuevo, hasta que CICD DEV lo despliega, y también con `/rechazar` en pruebas DEV. Para volver a habilitarlo, corrige y haz push, o re-ejecuta **CICD DEV** sobre la rama. Los PRs automáticos (Dependabot, GitHub App) no tienen historia y quedan exentos.
+
 ## Congelamiento y releases
 
 Cada merge a `master` congela un release y prueba en QA que **se puede revertir**:
