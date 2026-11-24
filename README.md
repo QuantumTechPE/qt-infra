@@ -87,7 +87,7 @@ flowchart LR
 1. **[docs/puesta-en-marcha.md](docs/puesta-en-marcha.md)**: organización, plataforma, clústeres y primer microservicio.
 2. **[docs/flujo-de-trabajo.md](docs/flujo-de-trabajo.md)**: el día a día (historia → PR → dev → qa → prod) y cómo cambiar configuración o secretos.
 3. **[docs/seguridad.md](docs/seguridad.md)**: secretos, supply chain, políticas del clúster y límites conocidos.
-. **[docs/recursos.md](docs/recursos.md)**: CPU y RAM por ambiente, con la ruta exacta para cambiar cada componente y cada microservicio.
+5. **[docs/recursos.md](docs/recursos.md)**: CPU y RAM por ambiente, con la ruta exacta para cambiar cada componente y cada microservicio.
 
 ```powershell
 cd platform
