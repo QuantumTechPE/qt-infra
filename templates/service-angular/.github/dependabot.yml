@@ -14,6 +14,11 @@ updates:
         patterns: ["@angular/*", "@angular-devkit/*"]
       testing:
         patterns: ["vitest", "@vitest/*", "jsdom"]
+    # Angular fija el rango de TypeScript (22.x: >=6.0 <6.1). Se actualiza junto con
+    # Angular (ng update), nunca por separado.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: docker
     directory: /
