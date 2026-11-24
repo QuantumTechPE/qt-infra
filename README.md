@@ -82,6 +82,8 @@ flowchart LR
 
 ## Empezar
 
+> **Servidor definitivo:** el levantamiento total (migración desde el servidor de pruebas o instalación desde cero, con los parámetros que cambian) está en **[docs/levantamiento.md](docs/levantamiento.md)**.
+
 1. **[docs/puesta-en-marcha.md](docs/puesta-en-marcha.md)**: organización, plataforma, clústeres y primer microservicio.
 2. **[docs/flujo-de-trabajo.md](docs/flujo-de-trabajo.md)**: el día a día (historia → PR → dev → qa → prod) y cómo cambiar configuración o secretos.
 3. **[docs/seguridad.md](docs/seguridad.md)**: secretos, supply chain, políticas del clúster y límites conocidos.
