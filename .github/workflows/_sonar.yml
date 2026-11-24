@@ -35,27 +35,27 @@ jobs:
       REF_NAME: ${{ github.ref_name }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # Sonar necesita historial para "new code" y blame
           persist-credentials: false
 
       - name: Descargar cobertura (Quarkus)
         if: inputs.stack == 'quarkus'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.artifact-prefix }}-reports
           path: ${{ inputs.working-directory }}/target
 
       - name: Descargar cobertura (Angular)
         if: inputs.stack == 'angular'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.artifact-prefix }}-reports
           path: ${{ inputs.working-directory }}/.qt-reports
 
       - name: Token de SonarQube desde Vault
-        uses: hashicorp/vault-action@v4
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
         with:
           url: ${{ vars.VAULT_ADDR }}
           caCertificate: ${{ vars.VAULT_CA_B64 }}
@@ -67,22 +67,8 @@ jobs:
             secret/data/ci/sonarqube token | SONAR_TOKEN ;
             secret/data/ci/sonarqube host_url | SONAR_HOST_URL
 
-      # PR → análisis de PR. Push a una rama de historia (qt/<n>) → análisis de
-      # rama, para no pisar el de master (rama principal del proyecto).
-      - name: Argumentos de Pull Request o rama
-        run: |
-          if [[ -n "${PR_NUMBER:-}" ]]; then
-            {
-              echo "SONAR_PR_KEY=${PR_NUMBER}"
-              echo "SONAR_PR_BRANCH=${PR_HEAD_REF}"
-              echo "SONAR_PR_BASE=${PR_BASE_REF}"
-            } >> "$GITHUB_ENV"
-          elif [[ "$REF_NAME" != "$DEFAULT_BRANCH" ]]; then
-            echo "SONAR_BRANCH=${REF_NAME}" >> "$GITHUB_ENV"
-          fi
-
       # ---------------------------------------------------------------- Quarkus
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         if: inputs.stack == 'quarkus'
         with:
           distribution: temurin
@@ -94,11 +80,13 @@ jobs:
         if: inputs.stack == 'quarkus'
         working-directory: ${{ inputs.working-directory }}
         run: |
+          # PR → análisis de PR. Push a una rama de historia (qt/<n>) → análisis de rama,
+          # para no pisar el de master. Cada valor va como un argumento entre comillas.
           args=("-Dsonar.projectKey=${PROJECT_KEY}" "-Dsonar.projectName=${PROJECT_KEY}")
-          if [[ -n "${SONAR_PR_KEY:-}" ]]; then
-            args+=("-Dsonar.pullrequest.key=${SONAR_PR_KEY}" "-Dsonar.pullrequest.branch=${SONAR_PR_BRANCH}" "-Dsonar.pullrequest.base=${SONAR_PR_BASE}")
-          elif [[ -n "${SONAR_BRANCH:-}" ]]; then
-            args+=("-Dsonar.branch.name=${SONAR_BRANCH}")
+          if [[ -n "${PR_NUMBER:-}" ]]; then
+            args+=("-Dsonar.pullrequest.key=${PR_NUMBER}" "-Dsonar.pullrequest.branch=${PR_HEAD_REF}" "-Dsonar.pullrequest.base=${PR_BASE_REF}")
+          elif [[ "$REF_NAME" != "$DEFAULT_BRANCH" ]]; then
+            args+=("-Dsonar.branch.name=${REF_NAME}")
           fi
           # Recompila sin tests (Sonar necesita los .class); la cobertura viene del job de build.
           chmod +x mvnw
@@ -106,14 +94,14 @@ jobs:
             org.sonarsource.scanner.maven:sonar-maven-plugin:sonar "${args[@]}"
 
       # ---------------------------------------------------------------- Angular
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: inputs.stack == 'angular'
         with:
           node-version-file: ${{ inputs.working-directory }}/.nvmrc
 
       - name: Angular → SonarQube
         if: inputs.stack == 'angular'
-        uses: SonarSource/sonarqube-scan-action@v8
+        uses: SonarSource/sonarqube-scan-action@70bad232163b09d998ea0707ee80c0ec80798c16 # v8.5.1
         with:
           projectBaseDir: ${{ inputs.working-directory }}
           args: >

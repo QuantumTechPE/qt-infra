@@ -229,16 +229,25 @@ switch ($Command) {
         $k3d = Get-K3d
         $name = "qt-$Arg1"
         $port = $LocalIngressPorts[$Arg1]
+        $upper = $Arg1.ToUpper()
+        # Tope de RAM POR NODO (el cluster local tiene 2 nodos: server + agent). Vacio =
+        # sin tope. Solo al CREAR: k3d informa ese tope a Kubernetes (capacidad del nodo),
+        # que asi programa y desaloja pods sin pasarse. Un tope aplicado despues (docker
+        # update) o un tope de CPU quedan ocultos para Kubernetes y desestabilizan el
+        # cluster. Para cambiarlo: borrar el cluster y crearlo de nuevo.
+        $nodeMemory = Get-EnvValue "LOCAL_NODE_MEMORY_$upper"
         $existing = @(& $k3d cluster list -o json | ConvertFrom-Json | ForEach-Object { $_.name })
         if ($existing -contains $name) {
-            Write-Info "El cluster $name ya existe"
+            Write-Info "El cluster $name ya existe (el tope de RAM solo se aplica al crearlo)"
         } else {
-            Write-Info "Creando cluster $name (k3s $K3sImage; Ingress en el puerto $port)"
+            Write-Info "Creando cluster $name (k3s $K3sImage; Ingress en el puerto $port; RAM por nodo: $(if ($nodeMemory) { $nodeMemory } else { 'sin tope' }))"
+            $memoryArgs = @()
+            if ($nodeMemory) { $memoryArgs = @('--servers-memory', $nodeMemory, '--agents-memory', $nodeMemory) }
             # En la red de la plataforma: Vault y el toolbox lo alcanzan por nombre
             Invoke-Native $k3d cluster create $name --network qt-platform --image $K3sImage `
                 --servers 1 --agents 1 --k3s-arg "--tls-san=k3d-$name-server-0@server:0" `
                 --api-port "127.0.0.1:$($LocalApiPorts[$Arg1])" -p "${port}:80@loadbalancer" `
-                --kubeconfig-switch-context=false --wait --timeout 300s
+                --kubeconfig-switch-context=false --wait --timeout 300s @memoryArgs
         }
         # kubeconfig para el toolbox: API por el nombre del nodo dentro de la red Docker
         $kubeconfig = (& $k3d kubeconfig get $name) -join "`n"
@@ -246,7 +255,6 @@ switch ($Command) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot ".secrets\kubeconfig-$Arg1"), $kubeconfig + "`n", $utf8NoBom)
         $hostIp = (Get-EnvValue 'PLATFORM_HOST').Split(',')[0].Trim()
-        $upper = $Arg1.ToUpper()
         Set-EnvDefault "INGRESS_DOMAIN_$upper" "$Arg1.$hostIp.nip.io"
         Set-EnvDefault "INGRESS_PORT_$upper" $port
         Write-Ok "Cluster $name listo (kubeconfig: platform/.secrets/kubeconfig-$Arg1; kubectl --context k3d-$name)"

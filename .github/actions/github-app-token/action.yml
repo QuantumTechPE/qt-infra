@@ -38,7 +38,7 @@ runs:
   steps:
     - name: Leer credencial de la GitHub App desde Vault
       id: vault
-      uses: hashicorp/vault-action@v4
+      uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
       with:
         url: ${{ inputs.vault-addr }}
         caCertificate: ${{ inputs.vault-ca }}
@@ -53,7 +53,7 @@ runs:
 
     - name: Emitir token de instalación
       id: app
-      uses: actions/create-github-app-token@v3
+      uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
       with:
         client-id: ${{ steps.vault.outputs.CLIENT_ID }}
         private-key: ${{ steps.vault.outputs.PRIVATE_KEY }}

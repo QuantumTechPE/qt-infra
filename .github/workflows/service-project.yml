@@ -21,7 +21,7 @@ jobs:
       id-token: write
     steps:
       - name: Código de la plataforma (qt-infra)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -39,7 +39,7 @@ jobs:
 
       # Token de Vault para el contador de códigos QT-<n> (KV con check-and-set)
       - name: Token de Vault (códigos de historia)
-        uses: hashicorp/vault-action@v4
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
         with:
           url: ${{ vars.VAULT_ADDR }}
           caCertificate: ${{ vars.VAULT_CA_B64 }}

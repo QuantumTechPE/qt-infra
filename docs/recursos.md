@@ -25,19 +25,61 @@ Hay **tres niveles**:
 | [2. Componentes de plataforma](#2-componentes-de-plataforma-por-ambiente) | Prometheus, Grafana, Loki, Alloy, Kyverno, External Secrets, Argo CD | Repo **`qt-gitops`** (y `k8s-bootstrap.sh` para Argo CD) |
 | [3. Cada microservicio](#3-cada-microservicio-por-ambiente) | Los pods de cada micro | Carpeta **`deploy/`** del repo del micro |
 
-## 1. Tamaño de cada clúster
+## 1. Tope de cada clúster
 
-| Ambiente | Inventario (nodos) | Sugerido para empezar |
+El tope de un clúster es **la suma de la CPU y la RAM de sus nodos**. Los pods de ese clúster nunca pueden usar más; dentro de ese tope se reparten según sus `requests` y `limits` (secciones 2 y 3).
+
+### Servidores reales (servidor definitivo)
+
+| Qué | Dónde | Valor |
 |---|---|---|
-| dev | `qt-infra/k8s/provisioning/inventories/dev/hosts.yml` | 1 nodo · 2 vCPU · 8 GB |
-| qa | `qt-infra/k8s/provisioning/inventories/qa/hosts.yml` | 1 nodo · 4 vCPU · 8 GB |
-| prod | `qt-infra/k8s/provisioning/inventories/prod/hosts.yml` | 3 nodos · 4 vCPU · 8 GB |
+| **Tope** del clúster | Tamaño de cada VM (hipervisor o nube). Los nodos se listan en `qt-infra/k8s/provisioning/inventories/<ambiente>/hosts.yml` | dev: 1 nodo · 2 vCPU · 8 GB · qa: 1 nodo · 4 vCPU · 8 GB · prod: 3 nodos · 4 vCPU · 8 GB (sugerido) |
+| **Reserva** por nodo para el sistema operativo y k3s (los pods no la pueden usar) | Por defecto: `qt-infra/k8s/provisioning/group_vars/all.yml`. Por ambiente: `inventories/<ambiente>/hosts.yml`, en `all.vars` | `k3s_system_reserved: "cpu=250m,memory=512Mi"` y `k3s_kube_reserved: "cpu=250m,memory=512Mi"` |
+| Umbral de desalojo (kubelet saca pods antes de que el nodo se quede sin memoria) | Los mismos archivos | `k3s_eviction_hard: "memory.available<300Mi,nodefs.available<10%"` |
 
-La CPU y la RAM de cada nodo son las de la VM. Para crecer, agrega nodos al inventario (sección `k3s_agent`) y ejecuta `qt k8s-provision <ambiente>`, o amplía la VM.
+Lo que pueden usar los pods de un nodo (*asignable*) es el tamaño de la VM menos la reserva y el umbral. En un nodo de 4 vCPU y 8 GB quedan ~3,5 vCPU y ~6,7 GB.
+
+Para aplicar cambios:
+- **Tamaño de una VM:** amplíala en el hipervisor.
+- **Más nodos:** agrégalos en la sección `k3s_agent` del inventario.
+- **Reservas:** edita el inventario o `group_vars`.
+
+Después, en todos los casos, ejecuta:
+
+```bash
+./qt.sh k8s-provision <ambiente>
+```
+
+Ejemplo, prod con más reserva:
+
+```yaml
+# qt-infra/k8s/provisioning/inventories/prod/hosts.yml
+all:
+  vars:
+    cluster_env: prod
+    k3s_system_reserved: "cpu=500m,memory=1Gi"
+    k3s_kube_reserved: "cpu=500m,memory=1Gi"
+```
 
 La base de la plataforma usa unos **0,5 vCPU y 4–4,5 GB por clúster**, medido sin microservicios (ver [levantamiento.md](levantamiento.md#0-requisitos)).
 
-> En el servidor de pruebas (clústeres k3d en la PC) los nodos no tienen tope: comparten la CPU y la RAM que Docker Desktop tiene asignadas (*Settings → Resources*).
+### Servidor de pruebas (clústeres locales k3d)
+
+Por defecto los 3 clústeres no tienen tope: comparten la CPU y la RAM que Docker Desktop tiene asignadas (*Settings → Resources*).
+
+| Qué | Dónde | Ejemplo |
+|---|---|---|
+| Tope de **RAM** por nodo (cada clúster local tiene 2 nodos: su tope es el doble) | `qt-infra/platform/.env`: `LOCAL_NODE_MEMORY_DEV`, `LOCAL_NODE_MEMORY_QA`, `LOCAL_NODE_MEMORY_PROD` | `LOCAL_NODE_MEMORY_DEV=3500m` → el clúster dev queda en 7 GB |
+
+El tope de RAM se aplica **solo al crear el clúster**, porque así k3d se lo informa a Kubernetes y este programa y desaloja pods sin pasarse. Para cambiarlo hay que recrear el clúster:
+
+```powershell
+.\.bin\k3d.exe cluster delete qt-dev
+.\qt.ps1 k8s-local dev
+.\qt.ps1 k8s-bootstrap dev
+```
+
+> En los clústeres locales **no se limita la CPU**: Kubernetes seguiría viendo todos los núcleos de la PC y el freno de Docker desestabiliza el clúster (se probó: los controladores y las *probes* fallan en cadena). Con servidores reales la CPU la limita el tamaño de la VM.
 
 ## 2. Componentes de plataforma, por ambiente
 

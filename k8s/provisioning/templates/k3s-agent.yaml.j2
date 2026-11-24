@@ -3,3 +3,8 @@ server: "https://{{ k3s_api_endpoint }}:6443"
 token: "{{ k3s_token }}"
 node-label:
   - "qt.platform/environment={{ cluster_env }}"
+# Reserva para el sistema operativo y k3s (group_vars/all.yml o el inventario)
+kubelet-arg:
+  - "system-reserved={{ k3s_system_reserved }}"
+  - "kube-reserved={{ k3s_kube_reserved }}"
+  - "eviction-hard={{ k3s_eviction_hard }}"
