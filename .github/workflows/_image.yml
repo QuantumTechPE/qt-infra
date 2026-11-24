@@ -114,6 +114,7 @@ jobs:
           tags: |
             type=sha,prefix=sha-
             type=ref,event=pr
+            type=ref,event=branch
             type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }}
           labels: |
             org.opencontainers.image.vendor=${{ github.repository_owner }}

@@ -5,6 +5,8 @@ name: Project Automation
 on:
   issues:
     types: [opened, reopened, assigned, closed]
+  issue_comment:
+    types: [created]
   pull_request_target:
     types: [opened, reopened, ready_for_review, converted_to_draft, closed]
 
@@ -18,7 +20,9 @@ concurrency:
 jobs:
   project:
     name: Tablero
-    if: vars.PROJECT_NUMBER != ''
+    if: >-
+      vars.PROJECT_NUMBER != '' &&
+      (github.event_name != 'issue_comment' || startsWith(github.event.comment.body, '/rechazar'))
     uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-project.yml@master
     permissions:
       contents: read

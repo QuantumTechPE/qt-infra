@@ -3,8 +3,8 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.qt</groupId>
     <artifactId>qt-template-quarkus</artifactId>
-    <!-- La versión la gestiona release-please: no editar a mano. -->
-    <version>0.1.0</version><!-- x-release-please-version -->
+    <!-- Versión del artefacto. La versión publicada la define el congelamiento (tags vX.Y.Z-rc.N / vX.Y.Z). -->
+    <version>0.1.0</version>
     <packaging>quarkus</packaging>
     <name>QT Backend</name>
     <description>API de referencia (Quarkus) del ecosistema QT</description>

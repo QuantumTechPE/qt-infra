@@ -54,7 +54,7 @@ flowchart LR
   GHCR -. "pull (Kyverno verifica firma)" .-> DEV & QA & PROD
 ```
 
-**Promoción:** merge a `master` → **dev**. Release (`vX.Y.Z`) → **qa**. El mismo digest pasa a **prod** con la aprobación de un admin. Si Argo CD no queda *Healthy*, el pipeline revierte el commit GitOps.
+**Despliegues:** push a la rama de la historia `qt/<n>` → **dev** (sin historia no hay despliegue). Merge a `master` → **congelamiento** en **qa** (congela, revierte y recongela) con release del cambio y de reversión. **prod** con un pase agendado, aprobado por un admin y ejecutado automáticamente a la hora indicada; luego se ratifica o se revierte. Ver [flujo de trabajo](docs/flujo-de-trabajo.md).
 
 ## Estructura
 

@@ -1,0 +1,392 @@
+# =============================================================================
+# Pase a producción (lo llama .github/workflows/pase.yml de cada repo de
+# servicio). Todo ocurre en el issue de pase que abre el congelamiento:
+#
+#   /rechazar <motivo>          Pruebas QA → Rechazo QA (descarta el release)
+#   /agendar AAAA-MM-DD HH:MM   Gestión de pase → aprobación de un ADMIN
+#                               (environment pase-produccion) → agenda en Vault
+#   (agendador de qt-infra)     a la hora agendada → Ejecución de pase → PROD
+#                               → Ratificación producción
+#   /ratificar                  release final vX.Y.Z → historias Done (cerradas)
+#   /revertir <motivo>          (admins) despliega el release de reversión
+#                               → Rechazo producción → Reversión
+# =============================================================================
+name: service-pase
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  command:
+    name: Pase
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      cmd: ${{ steps.pase.outputs.cmd }}
+      issue: ${{ steps.pase.outputs.issue }}
+      when: ${{ steps.pase.outputs.when }}
+      epoch: ${{ steps.pase.outputs.epoch }}
+      requested_by: ${{ steps.pase.outputs.requested_by }}
+      tag: ${{ steps.pase.outputs.tag }}
+      image: ${{ steps.pase.outputs.image }}
+      digest: ${{ steps.pase.outputs.digest }}
+      commit: ${{ steps.pase.outputs.commit }}
+      label: ${{ steps.pase.outputs.label }}
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Token de Vault (agenda de pases)
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-pase
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+
+      - name: Comando o ejecución agendada
+        id: pase
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PROJECT_OWNER: ${{ github.repository_owner }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          PASE_TZ: ${{ vars.PASE_TZ || 'America/Lima' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+        run: |
+          export VAULT_CACERT="${RUNNER_TEMP}/vault-ca.pem"
+          base64 -d <<<"$VAULT_CA_B64" > "$VAULT_CACERT"
+          if [[ "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]; then
+            echo "cmd=ejecutar" >> "$GITHUB_OUTPUT"
+            bash .qt-infra/.github/scripts/pase.sh check-exec
+          else
+            bash .qt-infra/.github/scripts/pase.sh command
+          fi
+
+  # ------------------------------------------------------------------ agenda
+  aprobar:
+    name: Aprobación del pase (admins)
+    needs: command
+    if: needs.command.outputs.cmd == 'agendar'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    environment:
+      name: pase-produccion
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Token de Vault (agenda de pases)
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-pase
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+
+      - name: Agendar en Vault
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PASE_TZ: ${{ vars.PASE_TZ || 'America/Lima' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+          ISSUE: ${{ needs.command.outputs.issue }}
+          WHEN: ${{ needs.command.outputs.when }}
+          EPOCH: ${{ needs.command.outputs.epoch }}
+          REQUESTED_BY: ${{ needs.command.outputs.requested_by }}
+          RUN_TOKEN: ${{ github.token }}
+        run: |
+          export VAULT_CACERT="${RUNNER_TEMP}/vault-ca.pem"
+          base64 -d <<<"$VAULT_CA_B64" > "$VAULT_CACERT"
+          # Quién aprobó el environment pase-produccion en ESTE run
+          APPROVER="$(GH_TOKEN="$RUN_TOKEN" gh api "repos/${REPO}/actions/runs/${GITHUB_RUN_ID}/approvals" \
+            --jq '[.[] | select(.state == "approved")] | last | .user.login // "admin"')"
+          export APPROVER
+          bash .qt-infra/.github/scripts/pase.sh approve "$ISSUE"
+
+  # ------------------------------------------------------------------ ejecución agendada
+  ejecutar:
+    name: Ejecución del pase
+    needs: command
+    if: needs.command.outputs.cmd == 'ejecutar'
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: prod
+      image: ${{ needs.command.outputs.image }}
+      digest: ${{ needs.command.outputs.digest }}
+      version: ${{ needs.command.outputs.tag }}
+      ref: ${{ needs.command.outputs.commit }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+
+  ejecutado:
+    name: Tablero · Ratificación producción
+    needs: [command, ejecutar]
+    if: always() && needs.command.result == 'success' && needs.command.outputs.cmd == 'ejecutar'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Token de Vault (agenda de pases)
+        uses: hashicorp/vault-action@v4
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-pase
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+
+      - name: Resultado del pase
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PROJECT_OWNER: ${{ github.repository_owner }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+          ISSUE: ${{ needs.command.outputs.issue }}
+          RESULT: ${{ needs.ejecutar.result }}
+        run: |
+          export VAULT_CACERT="${RUNNER_TEMP}/vault-ca.pem"
+          base64 -d <<<"$VAULT_CA_B64" > "$VAULT_CACERT"
+          bash .qt-infra/.github/scripts/pase.sh executed "$ISSUE" "$([[ "$RESULT" == success ]] && echo ok || echo fail)"
+
+  # ------------------------------------------------------------------ ratificación
+  ratificar:
+    name: Release final
+    needs: command
+    if: needs.command.outputs.cmd == 'ratificar'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      final: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Repo del servicio (historial completo y tags)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Publicar vX.Y.Z
+        id: release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.command.outputs.tag }}
+        run: bash .qt-infra/.github/scripts/release.sh final "$TAG"
+
+  ratificar-imagen:
+    name: Tag final de la imagen
+    needs: [command, ratificar]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Login en GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: vX.Y.Z → mismo digest que el release del cambio
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGE: ${{ needs.command.outputs.tag }}
+          FINAL: ${{ needs.ratificar.outputs.final }}
+        run: |
+          gh release download "$CHANGE" --repo "$GITHUB_REPOSITORY" --pattern despliegue.json --dir .
+          image="$(jq -r '.image' despliegue.json)"
+          digest="$(jq -r '.digest' despliegue.json)"
+          docker buildx imagetools create --tag "${image}:${FINAL}" "${image}@${digest}"
+
+  ratificado:
+    name: Tablero · Done
+    needs: [command, ratificar, ratificar-imagen]
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Historias → Done (cerradas)
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PROJECT_OWNER: ${{ github.repository_owner }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE: ${{ needs.command.outputs.issue }}
+          FINAL: ${{ needs.ratificar.outputs.final }}
+        run: bash .qt-infra/.github/scripts/pase.sh ratified "$ISSUE" "$FINAL"
+
+  # ------------------------------------------------------------------ reversión
+  revertir:
+    name: Reversión en producción
+    needs: command
+    if: needs.command.outputs.cmd == 'revertir'
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: prod
+      image: ${{ needs.command.outputs.image }}
+      digest: ${{ needs.command.outputs.digest }}
+      version: ${{ needs.command.outputs.label }}
+      ref: ${{ needs.command.outputs.commit }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+
+  revertido:
+    name: Tablero · Reversión
+    needs: [command, revertir]
+    if: always() && needs.command.result == 'success' && needs.command.outputs.cmd == 'revertir'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Resultado de la reversión
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PROJECT_OWNER: ${{ github.repository_owner }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE: ${{ needs.command.outputs.issue }}
+          RESULT: ${{ needs.revertir.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "$RESULT" == success ]]; then
+            bash .qt-infra/.github/scripts/pase.sh reverted "$ISSUE"
+          else
+            gh api -X POST "repos/${REPO}/issues/${ISSUE}/comments" \
+              -f body="🚨 **La reversión falló** (${RUN_URL}). Producción puede estar inestable: revisa Argo CD y re-ejecuta el job." > /dev/null
+            exit 1
+          fi

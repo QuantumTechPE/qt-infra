@@ -27,8 +27,8 @@ deploy/                                      cómo corre en dev, qa y prod (ver 
 
 | Ambiente | Cuándo | Recursos / HPA | Properties | Secretos (Vault) |
 |---|---|---|---|---|
-| dev | cada merge a `master` | `deploy/values-dev.yaml` | `deploy/config/dev/` | `secret/apps/qt-template-quarkus/dev` |
-| qa | cada release `vX.Y.Z` | `deploy/values-qa.yaml` | `deploy/config/qa/` | `secret/apps/qt-template-quarkus/qa` |
-| prod | mismo release + aprobación de admins | `deploy/values-prod.yaml` | `deploy/config/prod/` | `secret/apps/qt-template-quarkus/prod` |
+| dev | cada push a la rama de la historia `qt/<n>` | `deploy/values-dev.yaml` | `deploy/config/dev/` | `secret/apps/qt-template-quarkus/dev` |
+| qa | congelamiento: cada merge a `master` (`vX.Y.Z-rc.N`, con prueba de reversión) | `deploy/values-qa.yaml` | `deploy/config/qa/` | `secret/apps/qt-template-quarkus/qa` |
+| prod | pase agendado y aprobado por un admin (`vX.Y.Z` al ratificar) | `deploy/values-prod.yaml` | `deploy/config/prod/` | `secret/apps/qt-template-quarkus/prod` |
 
-La versión (`pom.xml`, `version.txt`) la gestiona **release-please**: no la edites a mano.
+La versión publicada la define el **congelamiento** a partir de los títulos de los PRs (`feat` → minor, `fix` → patch): `vX.Y.Z-rc.N` en QA y `vX.Y.Z` al ratificar en producción.

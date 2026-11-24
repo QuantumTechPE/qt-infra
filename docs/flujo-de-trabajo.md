@@ -8,35 +8,78 @@
 | `qt-<servicio>` | Código + `deploy/` (properties, recursos, HPA, secretos por ambiente) + CI/CD "delgado" que llama a `qt-infra` | Equipo del servicio |
 | `qt-gitops` | Snapshot de lo que corre en cada ambiente + add-ons de cada clúster | El pipeline (promociones desde `deploy/`) y personas (add-ons, por PR) |
 
-## Ciclo de una historia
+## Ciclo de vida de una historia
 
-| Evento | Automatización | Tablero |
+Cada historia, bug o tarea recibe un **código correlativo de la organización**: `QT-1`, `QT-2`… (sin saltos, en cualquier repo). Su rama es `qt/<n>`. **Sin historia no hay despliegue**: solo las ramas `qt/<n>` de una historia abierta llegan a DEV, y QA y producción salen únicamente de `master`.
+
+```
+Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rechazar)──► Rechazo DEV
+                                       ▲                │ PR qt/<n> → master (1 admin)
+                                       └── push ────────┤
+                                                        ▼
+            Congelamiento (doing) → Congelamiento (done) → Pruebas QA ──(/rechazar)──► Rechazo QA
+            congela · revierte · recongela                     │ /agendar AAAA-MM-DD HH:MM
+                                                               ▼
+            Gestión de pase (aprobación de admin) → Ejecución de pase (automática, a la hora)
+                                                               ▼
+            Ratificación producción ──(/ratificar)──► Done ──(/revertir)──► Reversión
+                       └──────────(/revertir)──► Rechazo producción ──► Reversión
+```
+
+| Carril | Qué lo dispara | Qué hace la plataforma |
 |---|---|---|
-| Historia creada (formulario) en el repo del servicio | Se agrega al tablero de la organización con prioridad, puntos y componente | **Backlog** |
-| El PO valida la Definition of Ready | (manual) | **Ready** |
-| Un dev se **asigna** la historia | Se crea `feature/<n>-<slug>` vinculada al issue | **In Progress** |
-| PR abierto con `Closes #<n>` | CI completo | **In Review** |
-| Un admin aprueba y el CI está en verde | **Auto-merge (squash)** | **Done** |
+| **Backlog** | Historia creada (formulario) | Código `QT-<n>` en el título y en el tablero, prioridad, puntos y componente |
+| **Ready** | El PO valida la Definition of Ready | (manual, arrastrando la tarjeta) |
+| **In Progress** | Un dev se **asigna** la historia | Crea la rama `qt/<n>` vinculada a la historia |
+| **Despliegue DEV** | `git push` a `qt/<n>` | Build, tests, Sonar (análisis de rama), seguridad, imagen firmada → DEV |
+| **Pruebas DEV** | DEV quedó *Healthy* | Comenta en la historia la versión desplegada |
+| **Rechazo DEV** | `/rechazar <motivo>` en la historia | Vuelve a desarrollo; el siguiente push redespliega |
+| **Congelamiento (doing)** | PR `qt/<n>` → `master` aprobado y mergeado | Release del **cambio** `vX.Y.Z-rc.N` + release de **reversión** + **issue de pase**; en QA: **congela → revierte → recongela** |
+| **Congelamiento (done)** | Los tres pasos quedaron *Healthy* | El cambio y su reversión están probados en QA |
+| **Pruebas QA** | QA toma el release (arrastrando el pase) | — |
+| **Rechazo QA** | `/rechazar <motivo>` en el issue de pase | Marca los releases como rechazados, cierra el pase y recrea `qt/<n>` para corregir |
+| **Gestión de pase** | `/agendar AAAA-MM-DD HH:MM` (hora de Lima) | Pide la **aprobación de un admin** (environment `pase-produccion`); aprobado, queda agendado en Vault |
+| **Ejecución de pase** | Llega la fecha y hora | El agendador de `qt-infra` (cada 5 min) dispara el pase: despliega la misma imagen en producción |
+| **Ratificación producción** | Producción quedó *Healthy* | Espera la validación del usuario |
+| **Done** | `/ratificar` | Release final `vX.Y.Z` (latest, con notas y artefactos), cierra las historias |
+| **Rechazo producción → Reversión** | `/revertir <motivo>` (solo admins), también desde Done | Despliega el release de reversión, reabre las historias y recrea `qt/<n>` |
 
 Convenciones (check "PR Lint / Convenciones"):
-- Título en Conventional Commits: `feat:` → minor, `fix:` → patch, `feat!:` → major.
-- Rama `<tipo>/<n°>-<slug>`.
-- `Closes #<n°>` en la descripción.
+- Título en Conventional Commits: `feat:` → minor, `fix:` → patch, `feat!:` → major (minor mientras la versión sea `0.x`).
+- Rama `qt/<n>` de una historia **abierta** del mismo repo. El PR no cierra la historia: la cierra la ratificación.
 
-## Del merge a producción
+## Congelamiento y releases
 
-```
-merge a master ─► CD: build · tests · Sonar · Semgrep · Trivy · imagen firmada (GHCR)
-              └► dev   (commit en qt-gitops/apps/<svc>/dev → Argo CD → espera Healthy)
-release-please abre "chore(release): vX.Y.Z"; al mergearlo (1 admin):
-              └► qa    (mismo digest)
-              └► prod  (mismo digest, tras aprobación del team admins en el environment "prod")
-```
+Cada merge a `master` congela un release y prueba en QA que **se puede revertir**:
 
-- **Una sola imagen** (mismo `sha256`) recorre los tres ambientes.
-- Antes de promover, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde `master` de ese repo.
+| Paso en QA | Despliega |
+|---|---|
+| Congela | El release del cambio `vX.Y.Z-rc.N` (imagen de `master` + `deploy/` de ese commit) |
+| Revierte | El release de reversión `vX.Y.Z-rc.N-reversion`: **lo que hoy corre en producción** según `qt-gitops`, con la configuración de su propio commit. Si aún no hay nada en producción, la reversión **retira** el servicio |
+| Recongela | De nuevo el release del cambio, que queda en QA para las pruebas |
+
+- Ambos releases se publican en GitHub Releases con `despliegue.json` (imagen, digest y commit). El del cambio también lleva binarios, SBOM y `SHA256SUMS` firmados.
+- Un congelamiento nuevo **reemplaza** a los pases aún no ejecutados y anula su agenda.
+- **Una sola imagen** (mismo `sha256`) va de QA a producción.
+- Antes de desplegar, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde la rama de ese run (`qt/<n>` en DEV, `master` en QA y producción).
 - En el clúster, **Kyverno** rechaza cualquier imagen no firmada por el pipeline.
 - Si Argo CD no queda *Synced + Healthy*, el pipeline **revierte el commit GitOps** y Argo CD vuelve a la versión anterior. Como el rollout usa `maxUnavailable: 0`, la versión fallida nunca recibe tráfico.
+
+## Pase a producción
+
+Todo ocurre en el **issue de pase** (`[PASE] <servicio> vX.Y.Z-rc.N`), con comandos en comentarios:
+
+| Comando | Cuándo | Quién |
+|---|---|---|
+| `/rechazar <motivo>` | Pruebas QA o Gestión de pase | QA (permiso de escritura) |
+| `/agendar AAAA-MM-DD HH:MM` | Congelamiento (done), Pruebas QA o para reprogramar | Líder (escritura); lo **aprueba un admin** en *Review deployments* |
+| `/ratificar` | Ratificación producción | Usuario o QA |
+| `/revertir <motivo>` | Ejecución, Ratificación o Done | **Solo admins** |
+
+- La agenda vive en Vault (`secret/platform/pases/<servicio>`). Solo la escribe el job que aprueba un admin, y el pase vuelve a validar todo antes de desplegar: aprobación, hora y que el issue siga abierto.
+- La hora es la de `America/Lima` (variable de organización `PASE_TZ`). El agendador revisa cada 5 minutos y GitHub puede retrasar los cron unos minutos en horas de alta carga.
+- Reprogramar (`/agendar` otra vez) anula la aprobación anterior y pide una nueva.
+- Tras una **reversión**, el cambio sigue en `master`: corrige en `qt/<n>` (o revierte el código) antes del siguiente congelamiento.
 
 ## Crear un microservicio
 
@@ -55,7 +98,7 @@ release-please abre "chore(release): vX.Y.Z"; al mergearlo (1 admin):
 | **Secretos** (solo nombres) | `deploy/vault/secrets.yaml` | Vault `secret/apps/<svc>/<env>` → External Secrets → env |
 
 - Un cambio en `deploy/` pasa por PR (el CI renderiza y valida dev, qa y prod, y publica el plan de recursos en el resumen).
-- Viaja con la versión: dev lo recibe en el merge, y qa y prod con el release.
+- Viaja con la versión: dev lo recibe con el push a `qt/<n>`, qa con el congelamiento y prod con el pase.
 - El pipeline compone `qt-gitops/apps/<svc>/<env>/values.yaml`; no se edita a mano.
 
 **Prioridad en Quarkus:** variables de entorno (Secret y `config:`) > `deploy/config/<env>/application.properties` > `src/main/resources/application.properties`.

@@ -23,8 +23,8 @@ npm run build          # dist/app/browser
 
 | Ambiente | Cuándo | Recursos / HPA | Configuración de runtime |
 |---|---|---|---|
-| dev | cada merge a `master` | `deploy/values-dev.yaml` | `deploy/config/dev/config.json` |
-| qa | cada release `vX.Y.Z` | `deploy/values-qa.yaml` | `deploy/config/qa/config.json` |
-| prod | mismo release + aprobación de admins | `deploy/values-prod.yaml` | `deploy/config/prod/config.json` |
+| dev | cada push a la rama de la historia `qt/<n>` | `deploy/values-dev.yaml` | `deploy/config/dev/config.json` |
+| qa | congelamiento: cada merge a `master` (`vX.Y.Z-rc.N`, con prueba de reversión) | `deploy/values-qa.yaml` | `deploy/config/qa/config.json` |
+| prod | pase agendado y aprobado por un admin (`vX.Y.Z` al ratificar) | `deploy/values-prod.yaml` | `deploy/config/prod/config.json` |
 
-En el clúster lo sirve **Nginx sin root** con CSP estricta. La versión (`package.json`, `version.txt`) la gestiona **release-please**.
+En el clúster lo sirve **Nginx sin root** con CSP estricta. La versión publicada la define el **congelamiento** (`vX.Y.Z-rc.N` en QA, `vX.Y.Z` al ratificar en producción).

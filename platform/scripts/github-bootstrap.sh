@@ -74,7 +74,6 @@ gh api -X PUT "orgs/${OWNER}/actions/permissions/selected-actions" --input - >/d
     "hashicorp/vault-action@*",
     "aquasecurity/trivy-action@*",
     "aquasecurity/setup-trivy@*",
-    "googleapis/release-please-action@*",
     "sigstore/cosign-installer@*",
     "SonarSource/sonarqube-scan-action@*"
   ]
@@ -99,19 +98,31 @@ if [[ -z "$PROJECT_NUMBER" ]]; then
 fi
 status_options="$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 50 \
   --jq '.fields[] | select(.name == "Status") | [.options[].name] | join(",")')"
-if [[ "$status_options" != "Backlog,Ready,In Progress,In Review,Done" ]]; then
+LANES_CSV="Backlog,Ready,In Progress,Despliegue DEV,Pruebas DEV,Rechazo DEV,Congelamiento (doing),Congelamiento (done),Pruebas QA,Rechazo QA,Gestión de pase,Ejecución de pase,Ratificación producción,Rechazo producción,Done,Reversión"
+if [[ "$status_options" != "$LANES_CSV" ]]; then
   status_field="$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 50 --jq '.fields[] | select(.name == "Status") | .id')"
   gh api graphql -f field="$status_field" -f query='
     mutation($field: ID!) {
       updateProjectV2Field(input: {fieldId: $field, singleSelectOptions: [
-        {name: "Backlog",     color: GRAY,   description: "Historias por refinar"},
-        {name: "Ready",       color: BLUE,   description: "Cumple la Definition of Ready"},
-        {name: "In Progress", color: YELLOW, description: "Rama creada, en desarrollo"},
-        {name: "In Review",   color: ORANGE, description: "PR abierto: CI + aprobación de admin"},
-        {name: "Done",        color: GREEN,  description: "Mergeado en master"}
+        {name: "Backlog",                 color: GRAY,   description: "Historias por refinar (código QT-n)"},
+        {name: "Ready",                   color: GRAY,   description: "Cumple la Definition of Ready"},
+        {name: "In Progress",             color: BLUE,   description: "Asignada: rama qt/<n> creada"},
+        {name: "Despliegue DEV",          color: BLUE,   description: "Push a qt/<n>: desplegando en DEV"},
+        {name: "Pruebas DEV",             color: YELLOW, description: "En DEV, en pruebas (/rechazar si no pasa)"},
+        {name: "Rechazo DEV",             color: RED,    description: "Rechazada en DEV: corregir en qt/<n>"},
+        {name: "Congelamiento (doing)",   color: PURPLE, description: "PR mergeado: congela, revierte y recongela en QA"},
+        {name: "Congelamiento (done)",    color: PURPLE, description: "Release del cambio y de reversión listos en QA"},
+        {name: "Pruebas QA",              color: YELLOW, description: "En QA, en pruebas (/rechazar en el issue de pase)"},
+        {name: "Rechazo QA",              color: RED,    description: "Rechazada en QA: release descartado"},
+        {name: "Gestión de pase",         color: ORANGE, description: "/agendar: fecha y hora + aprobación de admin"},
+        {name: "Ejecución de pase",       color: ORANGE, description: "Pase agendado ejecutándose en producción"},
+        {name: "Ratificación producción", color: PINK,   description: "En producción: /ratificar o /revertir"},
+        {name: "Rechazo producción",      color: RED,    description: "Rechazada en producción: revirtiendo"},
+        {name: "Done",                    color: GREEN,  description: "Ratificada: release final vX.Y.Z"},
+        {name: "Reversión",               color: RED,    description: "Producción restaurada con el release de reversión"}
       ]}) { projectV2Field { ... on ProjectV2SingleSelectField { id } } }
     }' >/dev/null
-  ok "Columnas: Backlog → Ready → In Progress → In Review → Done"
+  ok "Carriles: Backlog → … → Despliegue/Pruebas DEV → Congelamiento → Pruebas QA → Gestión/Ejecución de pase → Ratificación → Done"
 fi
 existing_fields="$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 50 --jq '[.fields[].name] | join("|")')"
 ensure_field() {
@@ -123,6 +134,9 @@ ensure_field() {
 ensure_field "Prioridad" --data-type SINGLE_SELECT --single-select-options "P0 - Crítica,P1 - Alta,P2 - Media,P3 - Baja"
 ensure_field "Story points" --data-type NUMBER
 ensure_field "Componente" --data-type SINGLE_SELECT --single-select-options "Backend,Frontend,Infraestructura"
+ensure_field "Código" --data-type TEXT
+ensure_field "Versión" --data-type TEXT
+ensure_field "Pase" --data-type TEXT
 
 # ------------------------------------------------------------------ 4. variables de la org (no secretos)
 set_org_var() { gh variable set "$1" --org "$OWNER" --visibility all --body "$2" >/dev/null; }
@@ -134,6 +148,7 @@ set_org_var INFRA_REPO "$INFRA_REPO"
 set_org_var GOVERNANCE_APP_ID "$GOVERNANCE_APP_ID"
 set_org_var PROJECT_NUMBER "$PROJECT_NUMBER"
 set_org_var ADMIN_APPROVALS_REQUIRED "${ADMIN_APPROVALS_REQUIRED}"
+gh variable get PASE_TZ --org "$OWNER" >/dev/null 2>&1 || set_org_var PASE_TZ "America/Lima"
 gh variable get DTRACK_ENABLED --org "$OWNER" >/dev/null 2>&1 || set_org_var DTRACK_ENABLED "false"
 ok "Variables de la organización (ningún secreto vive en GitHub: todo sale de Vault vía OIDC)"
 

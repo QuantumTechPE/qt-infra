@@ -1,20 +1,24 @@
-# CD: cada merge a master.
-#   build + escaneos → imagen firmada (GHCR) → GitOps dev (automático)
-#   release (release-please) → GitOps qa → GitOps prod (aprobación de admins)
-# La lógica vive en __INFRA_REPO__; los despliegues los ejecuta Argo CD en cada clúster.
+# CD. La lógica vive en __INFRA_REPO__; los despliegues los ejecuta Argo CD.
+#   push a qt/<n> (rama de la historia QT-<n>) → DEV
+#   push a master (PR aprobado)                → congelamiento en QA
+#                                                (congela → revierte → recongela)
+#                                                + releases + issue de pase
+# Sin historia no hay despliegue. Producción: issue de pase (pase.yml).
 name: CD
 
 on:
   push:
-    branches: [master]
+    branches: [master, "qt/**"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# DEV: un push nuevo a la misma rama reemplaza al anterior.
+# master: cada congelamiento corre completo (no se cancela).
 concurrency:
-  group: cd
-  cancel-in-progress: false
+  group: cd-${{ github.ref_name }}-${{ github.ref_name == 'master' && github.run_id || 'dev' }}
+  cancel-in-progress: ${{ github.ref_name != 'master' }}
 
 jobs:
   cd:
@@ -24,6 +28,7 @@ jobs:
       stack: __STACK__
     permissions:
       contents: write
+      issues: read
       security-events: write
       id-token: write
       packages: write

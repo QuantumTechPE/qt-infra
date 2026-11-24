@@ -7,8 +7,9 @@ Ni la organización ni los repos guardan secretos. Los jobs obtienen credenciale
 | Rol de Vault | Quién lo puede usar | Accede a |
 |---|---|---|
 | `gha-ci` | Cualquier repo de la organización | `secret/ci/*` (token de análisis de Sonar, API key de Dependency-Track) |
-| `gha-automation` | Solo `qt-infra/service-governance`, `service-project` y `service-cd` **@master**, ejecutados desde `master` | Credencial de la GitHub App |
-| `gha-promote-<env>` | Solo `qt-infra/_promote.yml`, desde `master`, con el **environment** `<env>` (prod exige aprobación de admins) | GitHub App + token de Argo CD del ambiente |
+| `gha-automation` | Solo `qt-infra/service-governance`, `service-project`, `service-cd`, `service-pase` y `pases` **@master**, ejecutados desde `master` o una rama de historia `qt/<n>` | Credencial de la GitHub App + contador de códigos `QT-<n>` |
+| `gha-pase` | Solo `qt-infra/service-pase.yml` y `pases.yml` **@master**, desde `master` | Agenda de pases `secret/platform/pases/*` (la escribe solo el job aprobado por un admin) |
+| `gha-promote-<env>` | Solo `qt-infra/_promote.yml` con el **environment** `<env>`: dev desde ramas `qt/*`, qa y prod desde `master` (prod solo vía pase aprobado) | GitHub App + token de Argo CD del ambiente |
 | `gha-provision` | Solo `qt-infra/new-service.yml` desde `master`, con el environment `provisioning` (aprobación de admins) | GitHub App + **crear** (no leer ni sobrescribir) `secret/apps/*` |
 | AppRole `github-runner` | Contenedores runner | GitHub App (para registrarse) |
 | Auth Kubernetes `k8s-<env>` | ServiceAccount de External Secrets del clúster `<env>` (audiencia `vault`) | `secret/apps/*/<env>` y la credencial de Grafana de `<env>` |
@@ -30,7 +31,7 @@ Un PR malicioso puede modificar workflows, pero su token OIDC dirá `ref: refs/p
 | Herramientas | Versiones fijas verificadas por SHA-256 (gitleaks, helm, kubeconform, kubectl, k3s, actionlint) |
 | Entre jobs | Cada artefacto viaja con su `.sha256` y se verifica antes de empaquetarlo |
 | Imagen | Trivy **antes** de firmar; firma keyless **cosign**; attestations **SLSA** y **SBOM** |
-| Promoción | `cosign verify` + `gh attestation verify --signer-workflow qt-infra/_image.yml --source-ref refs/heads/master` |
+| Promoción | `cosign verify` + `gh attestation verify --signer-workflow qt-infra/_image.yml --source-ref <rama del run>` (`qt/<n>` en dev, `master` en qa y prod) |
 | Admisión en el clúster | **Kyverno** `ImageValidatingPolicy`: solo imágenes firmadas por `qt-infra/_image.yml` |
 | Release | `SHA256SUMS` firmado + attestation de binarios |
 
