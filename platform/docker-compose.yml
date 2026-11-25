@@ -66,6 +66,27 @@ services:
     depends_on: [vault]
     networks: [platform]
 
+  # Despertador del agendador de pases: el cron de GitHub es best effort y puede
+  # atrasarse horas. Cada minuto lee la agenda de Vault (solo lectura) y, si un
+  # pase aprobado llegó a su hora, dispara el agendador de qt-infra.
+  pase-ticker:
+    image: qt-platform/toolbox:local
+    pull_policy: never
+    container_name: qt-pase-ticker
+    <<: *restart
+    command: ["bash", "/scripts/pase-ticker.sh"]
+    environment:
+      VAULT_ADDR: https://vault:8200
+      GITHUB_OWNER: ${GITHUB_OWNER:?}
+      INFRA_REPO: ${INFRA_REPO:-qt-infra}
+      PASE_TICK_SECONDS: ${PASE_TICK_SECONDS:-60}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./.secrets/pase-ticker-approle:/qt/approle:ro
+      - ./.secrets/tls/ca.crt:/secrets/tls/ca.crt:ro
+    depends_on: [vault, vault-unsealer]
+    networks: [platform]
+
   # ----------------------------------------------------------------- SonarQube
   sonar-db:
     image: postgres:17-alpine

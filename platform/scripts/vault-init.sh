@@ -10,7 +10,7 @@
 #       gha-automation         gobierno/tablero/release      → GitHub App
 #       gha-promote-<ambiente> promoción GitOps (environment) → GitHub App + Argo CD
 #       gha-provision          workflow "Nuevo microservicio" → GitHub App + crear secretos
-#   - AppRole para los runners self-hosted
+#   - AppRole para los runners self-hosted y para el agendador local de pases
 # Los secretos de cada microservicio (secret/apps/<servicio>/<ambiente>) los
 # crea service-register.sh al dar de alta el servicio.
 # -----------------------------------------------------------------------------
@@ -150,5 +150,17 @@ if [[ ! -s "${SECRETS_DIR}/runner-approle/secret_id" ]]; then
   (umask 077; vault write -f -field=secret_id auth/approle/role/github-runner/secret-id >"${SECRETS_DIR}/runner-approle/secret_id")
 fi
 ok "AppRole github-runner listo"
+
+# ------------------------------------------------------------ AppRole (agenda de pases)
+# Servicio pase-ticker: solo lee la agenda y despierta al agendador de qt-infra.
+vault write auth/approle/role/pase-ticker \
+  token_policies=pase-ticker token_ttl=2m token_max_ttl=5m \
+  secret_id_ttl=0 secret_id_num_uses=0 >/dev/null
+mkdir -p "${SECRETS_DIR}/pase-ticker-approle"
+vault read -field=role_id auth/approle/role/pase-ticker/role-id >"${SECRETS_DIR}/pase-ticker-approle/role_id"
+if [[ ! -s "${SECRETS_DIR}/pase-ticker-approle/secret_id" ]]; then
+  (umask 077; vault write -f -field=secret_id auth/approle/role/pase-ticker/secret-id >"${SECRETS_DIR}/pase-ticker-approle/secret_id")
+fi
+ok "AppRole pase-ticker listo"
 
 ok "Vault configurado para la organización ${GITHUB_OWNER} (audiencia OIDC: ${AUDIENCE})"
