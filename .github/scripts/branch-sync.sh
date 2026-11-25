@@ -18,6 +18,8 @@
 # Entradas: GH_TOKEN (GitHub App de la organización), OWNER
 # -----------------------------------------------------------------------------
 set -euo pipefail
+# shellcheck source=lib-gh.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-gh.sh" # gh con reintentos ante errores transitorios de GitHub
 
 : "${GH_TOKEN:?}" "${OWNER:?}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
