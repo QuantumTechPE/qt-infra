@@ -70,10 +70,16 @@ El merge es automático cuando se cumple **todo** esto; la aprobación del admin
 | Título y rama de una historia abierta | `PR Lint / Convenciones` |
 | Aprobación de un admin | `governance/admin-approvals` |
 | **El último commit de la rama se desplegó en DEV y quedó Healthy** | `deploy/dev` (lo publica CICD DEV con la GitHub App) |
-| Rama al día con `master` | Si `master` avanzó, hay que actualizar la rama, y ese commit nuevo vuelve a pasar por DEV |
+| Rama al día con `master` | **Automático**: la plataforma actualiza la rama (ver abajo) y ese commit nuevo vuelve a pasar por CI y por DEV |
 | Sin alertas de seguridad altas o críticas | Code scanning (CodeQL) |
 
 `deploy/dev` se pierde con cada push nuevo, hasta que CICD DEV lo despliega, y también con `/rechazar` en pruebas DEV. Para volver a habilitarlo, corrige y haz push, o re-ejecuta **CICD DEV** sobre la rama. Los PRs automáticos (Dependabot, GitHub App) no tienen historia y quedan exentos.
+
+**Ramas al día, sin intervención.** Si un PR aprobado queda atrasado porque `master` avanzó, la plataforma hace merge de `master` en la rama (como el botón *Update branch*):
+- **En el momento de la aprobación:** lo hace el gobierno.
+- **Después:** lo hace el workflow **Auto · Ramas al día** de `qt-infra`. Revisa cada 5 minutos **todos los repos** de la organización, incluidos los micros que se creen después.
+- **La aprobación se mantiene**, porque actualizar con `master` no es código nuevo. CI vuelve a correr, y en los microservicios **CICD DEV** redespliega en DEV y renueva `deploy/dev`. El auto-merge termina el trabajo.
+- **Conflictos:** si hay conflictos con `master`, la rama no se puede actualizar sola. Hay que resolverlos en la rama, con un push que sí pide aprobar de nuevo.
 
 ## Congelamiento y releases
 

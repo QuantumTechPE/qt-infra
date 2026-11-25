@@ -103,8 +103,20 @@ else
   if [[ "$mergeable_state" == "clean" ]]; then
     gh api -X PUT "repos/${REPO}/pulls/${PR_NUMBER}/merge" -f merge_method=squash -f sha="$head_sha" >/dev/null
     echo "- ✅ PR mergeado (squash)." >>"$summary"
-  else
+  elif [[ "$mergeable_state" != "behind" ]]; then
     echo "::warning::No se pudo habilitar auto-merge (mergeable_state=${mergeable_state}). Revisa 'Allow auto-merge' en el repo."
     echo "- ⚠️ No se habilitó auto-merge (estado: ${mergeable_state})." >>"$summary"
+  fi
+fi
+
+# Rama atrasada respecto a master: la plataforma la actualiza sola (merge de
+# master en la rama). En microservicios ese commit vuelve a pasar por CICD DEV,
+# así que "deploy/dev" se cumple sin intervención y el merge sigue automático.
+# El agendador "Auto · Ramas al día" cubre los PRs que se atrasan después.
+if [[ "$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.mergeable_state')" == "behind" ]]; then
+  if gh api -X PUT "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" -f expected_head_sha="$head_sha" >/dev/null 2>&1; then
+    echo "- 🔄 Rama atrasada: actualizada con master (vuelve a pasar por CI y DEV)." >>"$summary"
+  else
+    echo "::warning::No se pudo actualizar la rama del PR #${PR_NUMBER} con master."
   fi
 fi

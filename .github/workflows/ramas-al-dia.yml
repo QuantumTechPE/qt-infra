@@ -1,0 +1,47 @@
+# Mantiene al día con la rama principal los PRs YA APROBADOS de todos los repos
+# de la organización (incluidos los microservicios que se creen después). Así un
+# PR aprobado no se queda bloqueado porque master avanzó: se actualiza, vuelve a
+# pasar por CI (y por DEV en los microservicios) y se mergea solo.
+# El gobierno también lo hace en el momento de la aprobación.
+name: Auto · Ramas al día
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ramas-al-dia
+  cancel-in-progress: false
+
+jobs:
+  ramas:
+    name: PRs aprobados atrasados
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App (organización)
+        id: app
+        uses: ./.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Actualizar ramas atrasadas
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: bash .github/scripts/branch-sync.sh

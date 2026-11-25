@@ -90,7 +90,7 @@ write_role() {
 write_role gha-ci "ci-read" string \
   "$(jq -n --arg o "$GITHUB_OWNER" '{repository_owner: $o}')"
 
-# Automatización (gobierno, tablero, CD y pases). El código lo fija
+# Automatización (gobierno, tablero, CD, pases y ramas al día). El código lo fija
 # job_workflow_ref (workflows de master de qt-infra); el ref del repo puede ser
 # master o una rama de historia qt/<n> (tablero del despliegue en DEV).
 write_role gha-automation "automation" glob \
@@ -102,7 +102,8 @@ write_role gha-automation "automation" glob \
         "\($w)/service-project.yml@refs/heads/master",
         "\($w)/service-cd.yml@refs/heads/master",
         "\($w)/service-pase.yml@refs/heads/master",
-        "\($w)/pases.yml@refs/heads/master"
+        "\($w)/pases.yml@refs/heads/master",
+        "\($w)/ramas-al-dia.yml@refs/heads/master"
       ]}')"
 
 # Agenda de pases a producción: la escribe solo la aprobación de un admin
