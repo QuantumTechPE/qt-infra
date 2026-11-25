@@ -137,6 +137,7 @@ configs:
     policy.default: ""
     policy.csv: |
       p, role:ci-readonly, applications, get, */*, allow
+      p, role:ci-readonly, logs, get, */*, allow
       g, ci, role:ci-readonly
 server:
   resources: ${argo_server}
