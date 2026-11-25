@@ -78,8 +78,12 @@ notes() {
   echo
   local -A heading=([feat]="Funcionalidades" [fix]="Correcciones" [perf]="Rendimiento"
     [security]="Seguridad" [refactor]="Refactorizaciones" [otros]="Otros cambios")
+  # if y no `[[ ]] &&`: como último comando de la función, una sección vacía
+  # devolvería 1 y set -e cortaría el congelamiento sin ningún mensaje.
   for type in feat fix perf security refactor otros; do
-    [[ -n "${section[$type]}" ]] && printf '### %s\n%s\n' "${heading[$type]}" "${section[$type]}"
+    if [[ -n "${section[$type]}" ]]; then
+      printf '### %s\n%s\n' "${heading[$type]}" "${section[$type]}"
+    fi
   done
 }
 

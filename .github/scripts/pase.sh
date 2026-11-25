@@ -317,7 +317,7 @@ case "$mode" in
   lane)
     load_project
     move_all "${1:?issue}" "${2:?carril}"
-    [[ -n "${3:-}" ]] && comment "$REPO" "$1" "$3"
+    if [[ -n "${3:-}" ]]; then comment "$REPO" "$1" "$3"; fi
     ;;
   command) command_pase ;;
   approve) approve "$@" ;;
