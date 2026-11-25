@@ -2,7 +2,8 @@
 #   - Gitleaks  → secretos en el historial de commits
 #   - Semgrep   → SAST (OWASP Top 10, Java, TypeScript, Dockerfile, Kubernetes)
 #   - Trivy fs  → SCA (Maven/npm), secretos y misconfiguraciones IaC
-# Todo se publica en "Security → Code scanning" (SARIF).
+# Los hallazgos (SARIF) quedan como artefactos del run: hallazgos-gitleaks,
+# hallazgos-semgrep y hallazgos-trivy-fs (Security & quality de GitHub está apagado).
 # Bloquean: secretos, SAST severidad ERROR y vulnerabilidades HIGH/CRITICAL con fix.
 name: _security
 
@@ -103,7 +104,7 @@ jobs:
       - name: Quality gate SAST
         run: |
           if [[ "${SEMGREP_ERRORS:-0}" != "0" ]]; then
-            echo "::error::Semgrep encontró ${SEMGREP_ERRORS} hallazgo(s) de severidad ERROR. Revisa Security → Code scanning."
+            echo "::error::Semgrep encontró ${SEMGREP_ERRORS} hallazgo(s) de severidad ERROR. Detalle en el artefacto hallazgos-semgrep de este run."
             exit 1
           fi
 
