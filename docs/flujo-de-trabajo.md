@@ -30,7 +30,7 @@ Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rec
 |---|---|---|
 | **Backlog** | Historia creada (formulario) | Código `QT-<n>` en el título y en el tablero, prioridad, puntos y componente |
 | **Ready** | El PO valida la Definition of Ready | (manual, arrastrando la tarjeta) |
-| **In Progress** | Un dev se **asigna** la historia | Crea la rama `qt/<n>` vinculada a la historia |
+| **In Progress** | Un dev se **asigna** la historia | Crea la rama `qt/<n>` (por nombre, sin vincularla al issue: así el merge no cierra la historia) |
 | **Despliegue DEV** | `git push` a `qt/<n>` | Build, tests, Sonar (análisis de rama), seguridad, imagen firmada → DEV |
 | **Pruebas DEV** | DEV quedó *Healthy* | Comenta en la historia la versión desplegada |
 | **Rechazo DEV** | `/rechazar <motivo>` en la historia | Vuelve a desarrollo; el siguiente push redespliega |
@@ -41,7 +41,7 @@ Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rec
 | **Gestión de pase** | `/agendar AAAA-MM-DD HH:MM` (hora de Lima) | Pide la **aprobación de un admin** (environment `pase-produccion`); aprobado, queda agendado en Vault |
 | **Ejecución de pase** | Llega la fecha y hora | El agendador de `qt-infra` (cada 5 min) dispara el pase: despliega la misma imagen en producción |
 | **Ratificación producción** | Producción quedó *Healthy* | Espera la validación del usuario |
-| **Done** | `/ratificar` | Release final `vX.Y.Z` (latest, con notas y artefactos), cierra las historias |
+| **Done** | `/ratificar` | Release final `vX.Y.Z` (latest, con notas y artefactos), cierra las historias. Es el **único** cierre: si un PR o un `Closes #n` la cierra antes, la plataforma la reabre |
 | **Rechazo producción → Reversión** | `/revertir <motivo>` (solo admins), también desde Done | Despliega el release de reversión, reabre las historias y recrea `qt/<n>` |
 
 Convenciones (check "PR Lint / Convenciones"):

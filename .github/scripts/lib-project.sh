@@ -204,23 +204,34 @@ pase_data() {
 }
 
 # recreate_branch <owner/repo> <n° issue> <código>: rama qt/<n> desde master
-# (para corregir tras un rechazo; la anterior se borró al mergear)
+# (al asignar la historia, o para corregir tras un rechazo).
+# La rama NO se vincula al issue (nada de createLinkedBranch): GitHub conecta
+# el PR de una rama vinculada y CIERRA la historia al mergearlo, y la historia
+# debe seguir abierta hasta ratificar su pase. El vínculo lo da el nombre qt/<n>.
 recreate_branch() {
-  local repo="$1" number="$2" code="$3" branch="qt/$3" sha repo_id node
+  local repo="$1" branch="qt/$3" sha
   if gh api "repos/${repo}/git/ref/heads/${branch}" >/dev/null 2>&1; then
     echo "la rama ${branch} ya existe"
     return 0
   fi
   sha="$(gh api "repos/${repo}/git/ref/heads/$(gh api "repos/${repo}" --jq .default_branch)" --jq '.object.sha')"
-  repo_id="$(gh api "repos/${repo}" --jq '.node_id')"
-  node="$(issue_node "$repo" "$number")"
-  gh api graphql -f issue="$node" -f oid="$sha" -f name="$branch" -f repo="$repo_id" -f query='
-    mutation($issue: ID!, $oid: GitObjectID!, $name: String!, $repo: ID!) {
-      createLinkedBranch(input: {issueId: $issue, oid: $oid, name: $name, repositoryId: $repo}) {
-        linkedBranch { ref { name } }
-      }
-    }' >/dev/null
+  gh api -X POST "repos/${repo}/git/refs" -f ref="refs/heads/${branch}" -f sha="$sha" >/dev/null
   echo "rama ${branch} creada desde ${sha:0:7}"
+}
+
+# closed_by_code <owner/repo> <n° issue> → PullRequest | Commit | "" (vacío si
+# lo cerró una persona o la API, como la ratificación del pase)
+closed_by_code() {
+  gh api graphql -F n="$2" -f owner="${1%/*}" -f name="${1#*/}" -f query='
+    query($owner: String!, $name: String!, $n: Int!) {
+      repository(owner: $owner, name: $name) {
+        issue(number: $n) {
+          timelineItems(last: 1, itemTypes: [CLOSED_EVENT]) {
+            nodes { ... on ClosedEvent { closer { __typename } } }
+          }
+        }
+      }
+    }' --jq '.data.repository.issue.timelineItems.nodes[0].closer.__typename // ""' 2>/dev/null || true
 }
 
 # permission <owner/repo> <usuario> → admin | maintain | write | triage | read | none
