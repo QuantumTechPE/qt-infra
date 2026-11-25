@@ -177,8 +177,15 @@ command_pase() {
 
     agendar)
       in_list "$perm" admin maintain write || { deny "@${user} no tiene permisos para agendar."; return 0; }
-      in_list "$lane" "Congelamiento (done)" "Pruebas QA" "Gestión de pase" ||
-        { deny "\`/agendar\` aplica tras el congelamiento (ahora: ${lane:-sin carril})."; return 0; }
+      # También en "Ejecución de pase" si la ejecución se cortó ANTES de desplegar
+      # (p. ej. una caída de GitHub): la agenda no llegó a "ejecutado".
+      if ! in_list "$lane" "Congelamiento (done)" "Pruebas QA" "Gestión de pase"; then
+        if [[ "$lane" != "Ejecución de pase" || -z "${VAULT_TOKEN:-}" ]] ||
+          [[ "$(jq -r '.state // ""' <<<"$(agenda_get)")" == "ejecutado" ]]; then
+          deny "\`/agendar\` aplica tras el congelamiento (ahora: ${lane:-sin carril})."
+          return 0
+        fi
+      fi
       [[ "$arg" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+([0-9]{2}:[0-9]{2})$ ]] ||
         { deny "Formato: \`/agendar AAAA-MM-DD HH:MM\` (hora de ${PASE_TZ})."; return 0; }
       local when epoch
