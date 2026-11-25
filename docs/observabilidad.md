@@ -1,6 +1,6 @@
 # Observabilidad (Grafana por ambiente)
 
-Cada clúster (dev, qa y prod) tiene su propio stack, instalado y actualizado por GitOps desde `qt-gitops/clusters/<ambiente>/addons/`:
+Cada clúster (dev, cert y prod) tiene su propio stack, instalado y actualizado por GitOps desde `qt-gitops/clusters/<ambiente>/addons/`:
 
 | Componente | Para qué | Acceso |
 |---|---|---|
@@ -21,7 +21,7 @@ La credencial de admin de Grafana es **distinta por ambiente**. Vive en Vault (`
 | Ambiente | Métricas (Prometheus) | Logs (Loki) |
 |---|---|---|
 | dev | 3 días · 10 Gi | 72 h · 10 Gi |
-| qa | 7 días · 20 Gi | 168 h · 20 Gi |
+| cert | 7 días · 20 Gi | 168 h · 20 Gi |
 | prod | 15 días · 50 Gi | 360 h · 50 Gi |
 
 Se ajusta en `platform/scripts/gitops-render.sh` (clústeres nuevos) o directamente en `qt-gitops/clusters/<ambiente>/addons/monitoring.yaml` y `loki.yaml` (por PR).

@@ -1,0 +1,73 @@
+# =============================================================================
+# CI del repo de configuración (lo llama .github/workflows/ci.yml de qt-config).
+# Check requerido por sus reglas: "CI / Gate".
+#
+#   Reglas      orden de promoción (pre-develop → develop → master) y estructura
+#               <ambiente>/<servicio>-<ambiente>.yaml
+#   Validación  formato de cada archivo y render con el deploy/ real de su
+#               microservicio (chart qt-service + kubeconform)
+#   Seguridad   Gitleaks (ningún secreto en claro: los valores van en Vault)
+# =============================================================================
+name: config-ci
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    name: Reglas y validación
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .config
+          persist-credentials: false
+      - name: Chart y scripts de la plataforma (qt-infra)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: |
+            .github/scripts
+            k8s/charts
+          persist-credentials: false
+      - name: Instalar helm y kubeconform (verificados)
+        run: bash .qt-infra/.github/scripts/install-tools.sh helm kubeconform
+      - name: Validar qt-config
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          CONFIG_DIR: .config
+        run: bash .qt-infra/.github/scripts/config-ci.sh .qt-infra/k8s/charts/qt-service
+
+  security:
+    name: Seguridad
+    uses: $/.github/workflows/_security.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  gate:
+    name: Gate
+    if: always()
+    needs: [validar, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consolidar resultados
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")' <<<"$RESULTS")
+          if [[ -n "$failed" ]]; then
+            echo "::error::Jobs con fallas: $failed"
+            exit 1
+          fi
+          echo "✅ Todo en verde"

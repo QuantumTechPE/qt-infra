@@ -3,7 +3,7 @@
 # Plan del CD: decide el canal según la rama y aplica "sin historia no hay
 # despliegue".
 #
-#   master          → channel=freeze  (congelamiento en QA y pase a producción)
+#   master          → channel=freeze  (congelamiento en CERT y pase a producción)
 #   qt/<n>          → channel=dev     (solo si existe la historia abierta QT-<n>)
 #   cualquier otra  → error (no se despliega)
 #
@@ -21,22 +21,22 @@ summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
 if [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
   if [[ "$EXPECTED_CHANNEL" == "dev" ]]; then
-    echo "::error::CICD DEV no corre sobre ${DEFAULT_BRANCH}: usa una rama de historia qt/<n> (${DEFAULT_BRANCH} va por CICD QA)."
+    echo "::error::CICD DEV no corre sobre ${DEFAULT_BRANCH}: usa una rama de historia qt/<n> (${DEFAULT_BRANCH} va por CICD CERT)."
     exit 1
   fi
   echo "channel=freeze" >>"$out"
-  echo "### ${DEFAULT_BRANCH} → congelamiento en QA y pase a producción" >>"$summary"
+  echo "### ${DEFAULT_BRANCH} → congelamiento en CERT y pase a producción" >>"$summary"
   exit 0
 fi
 
 if [[ "$EXPECTED_CHANNEL" == "freeze" ]]; then
-  echo "::error::CICD QA solo corre sobre ${DEFAULT_BRANCH} (la rama '${REF_NAME}' va por CICD DEV)."
+  echo "::error::CICD CERT solo corre sobre ${DEFAULT_BRANCH} (la rama '${REF_NAME}' va por CICD DEV)."
   exit 1
 fi
 
 code="$(code_from_branch "$REF_NAME")"
 if [[ -z "$code" ]]; then
-  echo "::error::La rama '${REF_NAME}' no despliega: solo ${DEFAULT_BRANCH} (QA/PROD) y qt/<n> (DEV, rama de una historia)."
+  echo "::error::La rama '${REF_NAME}' no despliega: solo ${DEFAULT_BRANCH} (CERT/PROD) y qt/<n> (DEV, rama de una historia)."
   exit 1
 fi
 

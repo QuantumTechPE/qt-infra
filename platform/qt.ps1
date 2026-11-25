@@ -6,11 +6,11 @@
   up                                     Vault (TLS) + SonarQube + runners, configurados
   github-app <APP_ID> <CLIENT_ID> <pem>  Guarda la GitHub App en Vault y reinicia los runners
   ssh-key                                Llave SSH para administrar los nodos k3s
-  k8s-provision <dev|qa|prod>            Instala/actualiza k3s en los servidores (Ansible)
-  k8s-local <dev|qa|prod>                Alternativa sin servidores: cluster k3s en esta PC (k3d)
-  k8s-local-stop <dev|qa|prod>           Apaga un cluster local (libera su RAM)
-  k8s-local-start <dev|qa|prod>          Enciende un cluster local apagado (robusto tras reiniciar Docker)
-  k8s-bootstrap <dev|qa|prod>            Vault <-> cluster + Argo CD + GitOps
+  k8s-provision <dev|cert|prod>            Instala/actualiza k3s en los servidores (Ansible)
+  k8s-local <dev|cert|prod>                Alternativa sin servidores: cluster k3s en esta PC (k3d)
+  k8s-local-stop <dev|cert|prod>           Apaga un cluster local (libera su RAM)
+  k8s-local-start <dev|cert|prod>          Enciende un cluster local apagado (robusto tras reiniciar Docker)
+  k8s-bootstrap <dev|cert|prod>            Vault <-> cluster + Argo CD + GitOps
   gitops-render                          Regenera el contenido inicial de qt-gitops (.generated/)
   secret-list <servicio> <env>           Claves (sin valores) de secret/apps/<servicio>/<env>
   secret-set <servicio> <env> <CLAVE>    Carga un secreto (pide el valor sin mostrarlo)
@@ -122,7 +122,7 @@ function Initialize-Env {
 }
 
 function Assert-Env([string]$Value) {
-    if ($Value -notin @('dev', 'qa', 'prod')) { throw "Indica el ambiente: dev | qa | prod" }
+    if ($Value -notin @('dev', 'cert', 'prod')) { throw "Indica el ambiente: dev | cert | prod" }
 }
 
 function Get-EnvValue([string]$Key) {
@@ -155,8 +155,8 @@ $K3dSha256 = '49d0b9c796f5b8ba6f58a1dd5469e8b7b34bf9b6ce9078633eedb2789680a034'
 $K3sImage = 'rancher/k3s:v1.37.2-k3s1'
 # Puerto HTTP del Ingress de cada ambiente en esta PC (abierto en la LAN) y de la
 # API de Kubernetes (solo 127.0.0.1)
-$LocalIngressPorts = @{ dev = '8081'; qa = '8082'; prod = '8083' }
-$LocalApiPorts = @{ dev = '6551'; qa = '6552'; prod = '6553' }
+$LocalIngressPorts = @{ dev = '8081'; cert = '8082'; prod = '8083' }
+$LocalApiPorts = @{ dev = '6551'; cert = '6552'; prod = '6553' }
 
 # k3d fijado por version y verificado por SHA-256 (platform/.bin, ignorado por git)
 # Enciende un cluster k3d apagado. Tras reiniciar Docker las IPs de los
@@ -244,7 +244,7 @@ switch ($Command) {
     'secret-generate' { Assert-Env $Arg2; Initialize-Env; Invoke-Tool service-secret.sh generate $Arg1 $Arg2 $Arg3 }
     'secret-set' {
         Assert-Env $Arg2
-        if (-not $Arg1 -or -not $Arg3) { throw 'uso: .\qt.ps1 secret-set <servicio> <dev|qa|prod> <CLAVE>' }
+        if (-not $Arg1 -or -not $Arg3) { throw 'uso: .\qt.ps1 secret-set <servicio> <dev|cert|prod> <CLAVE>' }
         Initialize-Env
         $secure = Read-Host "Valor de $Arg3 para $Arg1 ($Arg2)" -AsSecureString
         $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))

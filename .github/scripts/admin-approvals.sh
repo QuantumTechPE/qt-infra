@@ -96,15 +96,19 @@ set_status success "${count}/${REQUIRED} aprobaciones de admins${who}"
 
 # Habilita auto-merge. Si el PR ya está 100% listo GitHub rechaza el auto-merge
 # ("clean status"): en ese caso se mergea directamente.
+# Squash para todo, salvo las promociones de qt-config (pre-develop → develop →
+# master): merge commit, para que las tres ramas compartan historia.
+merge_method=SQUASH
+[[ "$head_ref" == "pre-develop" || "$head_ref" == "develop" ]] && merge_method=MERGE
 if gh api graphql \
-  -f query='mutation($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) { pullRequest { number } } }' \
-  -f id="$node_id" >/dev/null 2>&1; then
+  -f query='mutation($id: ID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: $method}) { pullRequest { number } } }' \
+  -f id="$node_id" -f method="$merge_method" >/dev/null 2>&1; then
   echo "- 🤖 Auto-merge habilitado: se mergea cuando el CI quede en verde." >>"$summary"
 else
   mergeable_state="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.mergeable_state')"
   if [[ "$mergeable_state" == "clean" ]]; then
-    gh api -X PUT "repos/${REPO}/pulls/${PR_NUMBER}/merge" -f merge_method=squash -f sha="$head_sha" >/dev/null
-    echo "- ✅ PR mergeado (squash)." >>"$summary"
+    gh api -X PUT "repos/${REPO}/pulls/${PR_NUMBER}/merge" -f merge_method="${merge_method,,}" -f sha="$head_sha" >/dev/null
+    echo "- ✅ PR mergeado (${merge_method,,})." >>"$summary"
   elif [[ "$mergeable_state" != "behind" ]]; then
     echo "::warning::No se pudo habilitar auto-merge (mergeable_state=${mergeable_state}). Revisa 'Allow auto-merge' en el repo."
     echo "- ⚠️ No se habilitó auto-merge (estado: ${mergeable_state})." >>"$summary"

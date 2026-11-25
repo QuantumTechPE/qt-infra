@@ -1,0 +1,22 @@
+# Auto · Promoción · tras cada merge abre o actualiza el PR hacia la rama
+# siguiente: pre-develop → develop (cert) → master (prod).
+name: Auto · Promoción
+
+on:
+  push:
+    branches: [pre-develop, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promocion-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  promocion:
+    name: Promoción
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/config-promotion.yml@master
+    permissions:
+      contents: read
+      id-token: write

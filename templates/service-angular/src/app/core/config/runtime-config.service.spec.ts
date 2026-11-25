@@ -23,10 +23,10 @@ describe('RuntimeConfigService', () => {
 
   it('carga /runtime/config.json y lo combina con los valores por defecto', async () => {
     const loading = service.load();
-    httpTesting.expectOne('/runtime/config.json').flush({ environment: 'qa' });
+    httpTesting.expectOne('/runtime/config.json').flush({ environment: 'cert' });
     await loading;
 
-    expect(service.config()).toEqual({ ...DEFAULT_RUNTIME_CONFIG, environment: 'qa' });
+    expect(service.config()).toEqual({ ...DEFAULT_RUNTIME_CONFIG, environment: 'cert' });
   });
 
   it('mantiene los valores por defecto si el archivo no existe', async () => {

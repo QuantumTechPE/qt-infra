@@ -3,12 +3,14 @@
 # Crea un microservicio nuevo con todo lo corporativo:
 #
 #   1. Repo público <org>/<nombre> desde la plantilla (backend Quarkus o frontend
-#      Angular): esqueleto vacío + deploy/ (properties y ConfigMaps por ambiente,
-#      plan de recursos, HPA, secretos de Vault) + pipelines conectados a qt-infra
-#   2. Repo protegido: rulesets, environments dev/qa/prod (prod con aprobación
+#      Angular): esqueleto vacío + deploy/ técnico (plan de recursos, HPA, PDB,
+#      requiredConfig) + pipelines conectados a qt-infra
+#   2. Repo protegido: rulesets, environments dev/cert/prod (prod con aprobación
 #      de admins), seguridad, labels, tablero de la organización
-#   3. Vault: secret/apps/<nombre>/{dev,qa,prod} según deploy/vault/secrets.yaml
-#   4. GitOps: PR en qt-gitops que da de alta apps/<nombre>/{dev,qa,prod}
+#   3. Vault: secret/apps/<nombre>/{dev,cert,prod} según secrets: de su configuración
+#   4. GitOps: PR en qt-gitops que da de alta apps/<nombre>/{dev,cert,prod}
+#   5. Configuración: PR en qt-config (rama pre-develop) con dev/, cert/ y
+#      prod/<nombre>-<ambiente>.yaml; la plataforma la promueve a develop y master
 #
 # Dos formas de ejecutarlo:
 #   - Workflow "Nuevo microservicio" de qt-infra (recomendado; con aprobación de admins)
@@ -65,6 +67,7 @@ fi
 OWNER="${GITHUB_OWNER:?}"
 INFRA_REPO="${INFRA_REPO:-qt-infra}"
 GITOPS_REPO="${GITOPS_REPO:-qt-gitops}"
+CONFIG_REPO="${CONFIG_REPO:-qt-config}"
 : "${GOVERNANCE_APP_ID:?Define GOVERNANCE_APP_ID}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 output="${GITHUB_OUTPUT:-/dev/null}"
@@ -107,12 +110,15 @@ mkdir -p "$dest"
 cp -r templates/_common/. "$dest/"
 (cd "templates/service-${stack}" &&
   tar --exclude=node_modules --exclude=target --exclude=dist --exclude=coverage \
-    --exclude=.angular -cf - .) | (cd "$dest" && tar -xf -)
+    --exclude=.angular --exclude=qt-config -cf - .) | (cd "$dest" && tar -xf -)
+# Configuración inicial de cada ambiente: va al repo qt-config, no al del servicio
+cfg_dir="$(mktemp -d)"
+cp "templates/service-${stack}/qt-config/"{dev,cert,prod}.yaml "$cfg_dir/"
 
 # Tokens de la plataforma (lista explícita: no confundir con variables propias de
 # otras herramientas, como __MVNW_CMD__ en mvnw.cmd)
 tokens='qt-template-(quarkus|angular)|__(GITHUB_OWNER|INFRA_REPO|STACK)__'
-grep -rlIE "$tokens" "$dest" | xargs sed -i \
+grep -rlIE "$tokens" "$dest" "$cfg_dir" | xargs sed -i \
   -e "s|qt-template-${stack}|${name}|g" \
   -e "s|__GITHUB_OWNER__|${OWNER}|g" \
   -e "s|__INFRA_REPO__|${INFRA_REPO}|g" \
@@ -122,7 +128,7 @@ if [[ "$stack" == "quarkus" ]]; then
   sed -i "s|^quarkus.http.root-path=.*|quarkus.http.root-path=${api_path}|" "$dest/src/main/resources/application.properties"
   sed -i "s|^  path: /api$|  path: ${api_path}|" "$dest/deploy/values.yaml"
 fi
-if grep -rnIE "$tokens" "$dest"; then die "Quedaron tokens sin reemplazar"; fi
+if grep -rnIE "$tokens" "$dest" "$cfg_dir"; then die "Quedaron tokens sin reemplazar"; fi
 ok "Código generado desde templates/service-${stack}"
 
 # ------------------------------------------------------------------ 2. repo en GitHub
@@ -143,9 +149,9 @@ ok "Repo https://github.com/${OWNER}/${name} (rama principal: master)"
 configure_repo "${OWNER}/${name}" service
 
 # ------------------------------------------------------------------ 3. Vault (secretos por ambiente)
-info "Secretos en Vault: secret/apps/${name}/{dev,qa,prod}"
+info "Secretos en Vault: secret/apps/${name}/{dev,cert,prod}"
 if [[ "$ci_mode" == true ]]; then
-  bash .github/scripts/vault-seed-service.sh "$name" "$dest/deploy/vault/secrets.yaml" | tee -a "$summary"
+  bash .github/scripts/vault-seed-service.sh "$name" "$cfg_dir" | tee -a "$summary"
 else
   docker compose -f platform/docker-compose.yml run --rm -T toolbox bash /scripts/service-register.sh "$name" "$stack"
 fi
@@ -153,9 +159,9 @@ fi
 # ------------------------------------------------------------------ 4. alta en GitOps (PR)
 info "Abriendo PR de alta en ${GITOPS_REPO}"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+trap 'rm -rf "$tmp" "$cfg_dir"' EXIT
 git clone -q --depth 1 "$(git_url "${OWNER}/${GITOPS_REPO}")" "$tmp/gitops"
-for env in dev qa prod; do
+for env in dev cert prod; do
   mkdir -p "$tmp/gitops/apps/${name}/${env}"
   cat >"$tmp/gitops/apps/${name}/${env}/values.yaml" <<EOF
 # ${name} · ${env}: snapshot GENERADO por el pipeline de CD de
@@ -173,11 +179,11 @@ pr_url="$(
   git push -q -u origin "chore/alta-${name}"
   gh pr create --repo "${OWNER}/${GITOPS_REPO}" --head "chore/alta-${name}" \
     --title "feat(apps): alta del microservicio ${name}" --body "$(cat <<EOF
-Alta de **${name}** (${type}) en los clústeres dev, qa y prod.
+Alta de **${name}** (${type}) en los clústeres dev, cert y prod.
 
 - Repo: https://github.com/${OWNER}/${name}
 - Ruta pública: \`${api_path}\` sobre \`qt.<dominio del ambiente>\`
-- Configuración por ambiente: \`deploy/\` del repo del servicio (la compone el pipeline al promover)
+- Configuración por ambiente: repo \`${CONFIG_REPO}\` (\`<ambiente>/${name}-<ambiente>.yaml\`)
 - Secretos: Vault \`secret/apps/${name}/<ambiente>\`
 
 Generado por \`qt-infra/scripts/new-service.sh\`.
@@ -186,9 +192,41 @@ EOF
 )"
 ok "PR de alta: ${pr_url}"
 
+# ------------------------------------------------------------------ 5. configuración (PR en qt-config)
+# Entra por pre-develop (dev); la plataforma la promueve a develop (cert) y master (prod).
+info "Abriendo PR de configuración en ${CONFIG_REPO}"
+git clone -q --depth 1 --branch pre-develop "$(git_url "${OWNER}/${CONFIG_REPO}")" "$tmp/config"
+for env in dev cert prod; do
+  mkdir -p "$tmp/config/${env}"
+  cp "$cfg_dir/${env}.yaml" "$tmp/config/${env}/${name}-${env}.yaml"
+done
+config_pr="$(
+  cd "$tmp/config"
+  git checkout -q -b "alta/${name}"
+  git add -A
+  git commit -q -m "feat(config): configuración inicial de ${name}"
+  git push -q -u origin "alta/${name}"
+  gh pr create --repo "${OWNER}/${CONFIG_REPO}" --base pre-develop --head "alta/${name}"     --title "feat(config): configuración inicial de ${name}" --body "$(cat <<EOF
+Configuración inicial de **${name}** (${type}) para los tres ambientes:
+
+| Ambiente | Archivo | Llega con |
+|---|---|---|
+| dev | \`dev/${name}-dev.yaml\` | este PR (pre-develop) |
+| cert | \`cert/${name}-cert.yaml\` | la promoción pre-develop → develop |
+| prod | \`prod/${name}-prod.yaml\` | la promoción develop → master |
+
+Ajusta los valores reales de cada ambiente antes de desplegar ahí. Los secretos son solo nombres: sus valores viven en Vault \`secret/apps/${name}/<ambiente>\`.
+
+Generado por \`qt-infra/scripts/new-service.sh\`.
+EOF
+)"
+)"
+ok "PR de configuración: ${config_pr}"
+
 {
   echo "repo_url=https://github.com/${OWNER}/${name}"
   echo "gitops_pr=${pr_url}"
+  echo "config_pr=${config_pr}"
 } >>"$output"
 {
   echo "## ✅ Microservicio ${name} creado"
@@ -198,6 +236,7 @@ ok "PR de alta: ${pr_url}"
   echo "| Tipo | ${type} (${stack}) |"
   echo "| Ruta pública | \`${api_path}\` |"
   echo "| Alta en GitOps (requiere 1 admin) | ${pr_url} |"
+  echo "| Configuración en qt-config (requiere 1 admin) | ${config_pr} |"
 } >>"$summary"
 
 cat <<EOF
@@ -206,10 +245,12 @@ $(ok "Microservicio ${name} creado")
   Código:     ${dest}
   Repo:       https://github.com/${OWNER}/${name}
   Alta GitOps: ${pr_url}
-  Ambientes:  dev (cada merge) → qa (cada release) → prod (release + aprobación de admins)
+  Configuración: ${config_pr}
+  Ambientes:  dev (rama de historia qt/<n>) → cert (congelamiento) → prod (pase agendado)
 
 Siguientes pasos:
-  1. Un admin aprueba el PR de alta en ${GITOPS_REPO} (se mergea solo).
-  2. Clona el repo, crea una historia en el tablero, asígnatela y trabaja en la rama que se crea.
-     Al mergear el primer PR, el CD despliega en dev.
+  1. Un admin aprueba el PR de alta en ${GITOPS_REPO} y el de configuración en ${CONFIG_REPO}
+     (luego, las promociones de qt-config a develop y master).
+  2. Crea una historia en el tablero, asígnatela y trabaja en la rama qt/<n> que se crea:
+     cada push despliega en dev.
 EOF

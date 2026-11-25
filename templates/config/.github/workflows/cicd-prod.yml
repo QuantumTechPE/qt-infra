@@ -1,0 +1,21 @@
+# CICD PROD · merge en master → el clúster prod toma prod/<servicio>-prod.yaml:
+# secretos declarados → Vault, config.yaml → qt-gitops, Argo CD Synced + Healthy.
+name: CICD PROD
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cd:
+    name: CICD
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/config-cd.yml@master
+    with:
+      environment: prod
+    permissions:
+      contents: read
+      id-token: write

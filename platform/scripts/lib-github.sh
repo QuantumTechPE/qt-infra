@@ -51,7 +51,7 @@ JSON
   gh api -X PATCH "repos/${repo}/code-scanning/default-setup" -f state=not-configured >/dev/null 2>&1 || true
 }
 
-# configure_repo <owner/repo> <service|infra|gitops>
+# configure_repo <owner/repo> <service|infra|gitops|config>
 configure_repo() {
   local repo="$1" kind="$2" l name color desc
   info "Configurando ${repo} (${kind})"
@@ -118,9 +118,9 @@ JSON
         -f name='qt/*' -f type=branch >/dev/null
     fi
 
-    # qa y prod: solo master. La aprobación de producción se da al AGENDAR el
+    # cert y prod: solo master. La aprobación de producción se da al AGENDAR el
     # pase (pase-produccion); la ejecución a la hora agendada es automática.
-    for env in qa prod; do
+    for env in cert prod; do
       gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<'JSON'
 { "reviewers": [], "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false } }
 JSON
@@ -132,14 +132,39 @@ JSON
   "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false }
 }
 JSON
-    ok "  environments: dev (ramas qt/*), qa y prod (master) y pase-produccion (aprobación del team admins)"
+    ok "  environments: dev (ramas qt/*), cert y prod (master) y pase-produccion (aprobación del team admins)"
   fi
 
-  if [[ -n "${PROJECT_NUMBER:-}" ]]; then
+  if [[ "$kind" == "config" ]]; then
+    # Promociones pre-develop → develop → master con merge commit (las ramas
+    # comparten historia); los cambios entran a pre-develop con squash.
+    gh api -X PATCH "repos/${repo}" -F allow_merge_commit=true       -f merge_commit_title=PR_TITLE -f merge_commit_message=PR_BODY >/dev/null
+    # Cada ambiente aplica SOLO desde su rama (lo exige también Vault)
+    local env branch
+    for env in dev cert prod; do
+      case "$env" in dev) branch=pre-develop ;; cert) branch=develop ;; prod) branch=master ;; esac
+      gh api -X PUT "repos/${repo}/environments/${env}" --input - >/dev/null <<'JSON'
+{ "reviewers": [], "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+JSON
+      if ! gh api "repos/${repo}/environments/${env}/deployment-branch-policies"         --jq '.branch_policies[].name' | grep -qx "$branch"; then
+        gh api -X POST "repos/${repo}/environments/${env}/deployment-branch-policies"           -f name="$branch" -f type=branch >/dev/null
+      fi
+    done
+    ok "  environments: dev (pre-develop), cert (develop) y prod (master)"
+  elif [[ -n "${PROJECT_NUMBER:-}" ]]; then
     gh project link "$PROJECT_NUMBER" --owner "$OWNER" --repo "$repo" >/dev/null 2>&1 || true
   fi
 
   case "$kind" in
+    config)
+      apply_ruleset "$repo" .github/rulesets/config-ramas-protegidas.json
+      ok "  ruleset config-ramas-protegidas (pre-develop, develop y master: PR + CI + ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) de admin)"
+      if apply_ruleset "$repo" .github/rulesets/config-revisores-admins.json 2>/dev/null; then
+        ok "  ruleset config-revisores-admins (GitHub exige la aprobación del team admins)"
+      else
+        warn "  'required reviewers' por team no disponible: lo cubre el check governance/admin-approvals"
+      fi
+      ;;
     gitops)
       apply_ruleset "$repo" .github/rulesets/master-protegida-gitops.json
       ok "  ruleset master-protegida-gitops (PR + ${ADMIN_APPROVALS_REQUIRED:-1} aprobación(es) de admin; la GitHub App escribe las promociones)"

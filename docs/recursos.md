@@ -1,6 +1,6 @@
 # Recursos (CPU y RAM) por ambiente
 
-Dónde se configura cuánta CPU y memoria usa cada pieza, **por ambiente** (dev, qa y prod).
+Dónde se configura cuánta CPU y memoria usa cada pieza, **por ambiente** (dev, cert y prod).
 
 ## Conceptos
 
@@ -33,7 +33,7 @@ El tope de un clúster es **la suma de la CPU y la RAM de sus nodos**. Los pods 
 
 | Qué | Dónde | Valor |
 |---|---|---|
-| **Tope** del clúster | Tamaño de cada VM (hipervisor o nube). Los nodos se listan en `qt-infra/k8s/provisioning/inventories/<ambiente>/hosts.yml` | dev: 1 nodo · 2 vCPU · 8 GB · qa: 1 nodo · 4 vCPU · 8 GB · prod: 3 nodos · 4 vCPU · 8 GB (sugerido) |
+| **Tope** del clúster | Tamaño de cada VM (hipervisor o nube). Los nodos se listan en `qt-infra/k8s/provisioning/inventories/<ambiente>/hosts.yml` | dev: 1 nodo · 2 vCPU · 8 GB · cert: 1 nodo · 4 vCPU · 8 GB · prod: 3 nodos · 4 vCPU · 8 GB (sugerido) |
 | **Reserva** por nodo para el sistema operativo y k3s (los pods no la pueden usar) | Por defecto: `qt-infra/k8s/provisioning/group_vars/all.yml`. Por ambiente: `inventories/<ambiente>/hosts.yml`, en `all.vars` | `k3s_system_reserved: "cpu=250m,memory=512Mi"` y `k3s_kube_reserved: "cpu=250m,memory=512Mi"` |
 | Umbral de desalojo (kubelet saca pods antes de que el nodo se quede sin memoria) | Los mismos archivos | `k3s_eviction_hard: "memory.available<300Mi,nodefs.available<10%"` |
 
@@ -69,7 +69,7 @@ Por defecto los 3 clústeres no tienen tope: comparten la CPU y la RAM que Docke
 
 | Qué | Dónde | Ejemplo |
 |---|---|---|
-| Tope de **RAM** por nodo (cada clúster local tiene 2 nodos: su tope es el doble) | `qt-infra/platform/.env`: `LOCAL_NODE_MEMORY_DEV`, `LOCAL_NODE_MEMORY_QA`, `LOCAL_NODE_MEMORY_PROD` | `LOCAL_NODE_MEMORY_DEV=3500m` → el clúster dev queda en 7 GB |
+| Tope de **RAM** por nodo (cada clúster local tiene 2 nodos: su tope es el doble) | `qt-infra/platform/.env`: `LOCAL_NODE_MEMORY_DEV`, `LOCAL_NODE_MEMORY_CERT`, `LOCAL_NODE_MEMORY_PROD` | `LOCAL_NODE_MEMORY_DEV=3500m` → el clúster dev queda en 7 GB |
 
 El tope de RAM se aplica **solo al crear el clúster**, porque así k3d se lo informa a Kubernetes y este programa y desaloja pods sin pasarse. Para cambiarlo hay que recrear el clúster:
 
@@ -102,11 +102,11 @@ Se editan en el repo **`qt-gitops`**, con un **PR** (lo aprueba un admin). Al me
 | Kyverno (controladores) | `clusters/<ambiente>/addons/kyverno.yaml` | `backgroundController.resources`, `cleanupController.resources`, `reportsController.resources` |
 | External Secrets | `clusters/<ambiente>/addons/external-secrets.yaml` | `resources`, `webhook.resources`, `certController.resources` |
 
-`<ambiente>` es `dev`, `qa` o `prod`. Por ejemplo, la RAM de Prometheus en producción está en `qt-gitops/clusters/prod/addons/monitoring.yaml`, línea `resources:` bajo `prometheusSpec:`.
+`<ambiente>` es `dev`, `cert` o `prod`. Por ejemplo, la RAM de Prometheus en producción está en `qt-gitops/clusters/prod/addons/monitoring.yaml`, línea `resources:` bajo `prometheusSpec:`.
 
 En los mismos archivos están la **retención** y el **disco** de métricas y logs:
 
-| Qué | Archivo | Clave | dev / qa / prod |
+| Qué | Archivo | Clave | dev / cert / prod |
 |---|---|---|---|
 | Retención de métricas | `monitoring.yaml` | `prometheus.prometheusSpec.retention` | 3d / 7d / 15d |
 | Disco de métricas | `monitoring.yaml` | `prometheus.prometheusSpec.storageSpec…storage` | 10Gi / 20Gi / 50Gi |
@@ -115,7 +115,7 @@ En los mismos archivos están la **retención** y el **disco** de métricas y lo
 
 ### Valores actuales (request CPU · request RAM · límite RAM)
 
-| Componente | dev | qa | prod |
+| Componente | dev | cert | prod |
 |---|---|---|---|
 | Prometheus | 100m · 1Gi · 2Gi | 200m · 1536Mi · 3Gi | 300m · 2Gi · 4Gi |
 | Grafana | 50m · 384Mi · 768Mi | 50m · 384Mi · 768Mi | 100m · 512Mi · 1Gi |
@@ -140,7 +140,7 @@ Argo CD lo instala `k8s-bootstrap.sh`, no `qt-gitops`.
 |---|---|---|
 | Valores por ambiente | `platform/scripts/k8s-bootstrap.sh`, sección `# ---- 2. Argo CD` (bloque `case "$env"`) | `argo_controller`, `argo_repo`, `argo_server`, `argo_small` |
 
-| Pod de Argo CD | dev y qa | prod |
+| Pod de Argo CD | dev y cert | prod |
 |---|---|---|
 | application-controller | 100m · 512Mi · 1Gi | 250m · 768Mi · 1536Mi |
 | repo-server | 20m · 128Mi · 512Mi | 50m · 256Mi · 1Gi |
@@ -155,12 +155,12 @@ Al generar `qt-gitops` por primera vez (`qt gitops-render`), los valores de la t
 
 ## 3. Cada microservicio, por ambiente
 
-Se editan en el **repo del microservicio**, con un PR. Viajan con la versión: DEV los recibe con el push a `qt/<n>`, QA con el congelamiento y PROD con el pase.
+Se editan en el **repo del microservicio** (`deploy/`, lo técnico), con un PR. Viajan con la versión: DEV los recibe con el push a `qt/<n>`, CERT con el congelamiento y PROD con el pase. La configuración (variables, archivos, secretos declarados) no está aquí: vive en el repo `qt-config` ([configuracion.md](configuracion.md)).
 
 | Ambiente | Archivo | Claves |
 |---|---|---|
 | dev | `deploy/values-dev.yaml` | `resources`, `replicaCount` |
-| qa | `deploy/values-qa.yaml` | `resources`, `autoscaling` |
+| cert | `deploy/values-cert.yaml` | `resources`, `autoscaling` |
 | prod | `deploy/values-prod.yaml` | `resources`, `autoscaling`, `podDisruptionBudget`, `spreadAcrossNodes` |
 
 ```yaml
@@ -186,7 +186,7 @@ spreadAcrossNodes: true
 
 Valores iniciales de las plantillas (request CPU · request RAM → límite CPU · límite RAM):
 
-| Plantilla | dev | qa | prod |
+| Plantilla | dev | cert | prod |
 |---|---|---|---|
 | Backend (Quarkus) | 100m · 256Mi → 500m · 512Mi · 1 réplica | 250m · 384Mi → 1 · 768Mi · HPA 1–3 | 500m · 512Mi → 1500m · 1Gi · HPA 2–6 |
 | Frontend (Angular) | 10m · 32Mi → 200m · 64Mi · 1 réplica | 20m · 32Mi → 300m · 96Mi · 1 réplica | 50m · 48Mi → 500m · 128Mi · HPA 2–4 |

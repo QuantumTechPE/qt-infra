@@ -1,9 +1,13 @@
 # =============================================================================
-# qt-template-angular · valores COMUNES a dev, qa y prod
+# qt-template-angular · valores COMUNES a dev, cert y prod
 # (chart qt-infra/k8s/charts/qt-service; referencia completa en su values.yaml)
 #
-# Lo específico de cada ambiente va en values-<ambiente>.yaml y config/<ambiente>/.
-# Al promover, el pipeline compone todo en qt-gitops/apps/qt-template-angular/<ambiente>/values.yaml.
+# Aquí va SOLO lo técnico; el plan de recursos de cada ambiente, en
+# values-<ambiente>.yaml. Al promover, el pipeline lo compone en
+# qt-gitops/apps/qt-template-angular/<ambiente>/values.yaml.
+#
+# La CONFIGURACIÓN de cada ambiente (config.json de la SPA) vive en el repo
+# qt-config: dev/, cert/ y prod/<nombre-del-repo>-<ambiente>.yaml.
 # =============================================================================
 
 containerPort: 8080
@@ -26,8 +30,15 @@ ingress:
 metrics:
   enabled: false
 
-# deploy/config/<ambiente>/config.json se monta aquí → la SPA lo lee de /runtime/config.json
+# El config.json de qt-config (files:) se monta aquí → la SPA lo lee de /runtime/config.json
 configFiles:
   mountPath: /usr/share/nginx/html/runtime
 
-config: {}
+# Su configuración: qt-config <ambiente>/<nombre-del-repo>-<ambiente>.yaml
+# (dev ← rama pre-develop, cert ← develop, prod ← master).
+# Lo que ESTA versión necesita encontrar en qt-config de cada ambiente. DEV, el
+# congelamiento y el pase lo verifican ANTES de desplegar.
+requiredConfig:
+  env: []
+  files: [config.json]
+  secrets: []

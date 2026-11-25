@@ -148,6 +148,7 @@ jobs:
           GOVERNANCE_APP_ID: ${{ vars.GOVERNANCE_APP_ID }}
           INFRA_REPO: ${{ github.event.repository.name }}
           GITOPS_REPO: ${{ vars.GITOPS_REPO || 'qt-gitops' }}
+          CONFIG_REPO: ${{ vars.CONFIG_REPO || 'qt-config' }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_TOKEN: ${{ steps.vault.outputs.vault_token }}
           VAULT_CACERT: ${{ runner.temp }}/vault-ca.crt

@@ -2,7 +2,7 @@
 # CI corporativo de microservicios (lo llama .github/workflows/ci.yml de cada
 # repo de servicio). Check requerido por el ruleset de master: "CI / Gate".
 #
-#   Siempre: render y validación de deploy/ en dev, qa y prod.
+#   Siempre: render y validación de deploy/ en dev, cert y prod.
 #   PRs SIN rama de historia (Dependabot, GitHub App): además build + tests,
 #   SonarQube, Gitleaks · Semgrep · Trivy fs e imagen + Trivy.
 #   PRs desde qt/<n>: esas validaciones ya corrieron en CICD DEV sobre el MISMO
@@ -42,7 +42,7 @@ jobs:
       security-events: write
 
   deploy:
-    name: Despliegue (dev, qa, prod)
+    name: Despliegue (dev, cert, prod)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -61,10 +61,12 @@ jobs:
           persist-credentials: false
       - name: Instalar helm y kubeconform (verificados)
         run: bash .qt-infra/.github/scripts/install-tools.sh helm kubeconform
-      - name: Renderizar y validar deploy/ en los 3 ambientes
+      - name: Renderizar y validar deploy/ en los 3 ambientes (con su qt-config)
         env:
           WD: ${{ inputs.working-directory }}
           SERVICE: ${{ github.event.repository.name }}
+          CONFIG_REPO: ${{ github.repository_owner }}/${{ vars.CONFIG_REPO || 'qt-config' }}
+          GH_TOKEN: ${{ github.token }}
         run: bash .qt-infra/.github/scripts/deploy-validate.sh "$WD" "$SERVICE" .qt-infra/k8s/charts/qt-service
 
   # SonarQube y Vault son locales: solo PRs internos (no forks) y no Dependabot.

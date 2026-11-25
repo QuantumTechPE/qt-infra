@@ -1,7 +1,7 @@
 # =============================================================================
 # CD corporativo de microservicios. Lo llaman, en cada repo de servicio:
 #   CICD DEV (cicd-dev.yml)  en cada push a qt/<n>
-#   CICD QA  (cicd-qa.yml)   en cada push a master
+#   CICD CERT  (cicd-cert.yml)   en cada push a master
 #
 #   qt/<n>  rama de la historia QT-<n> (abierta; sin historia no hay despliegue)
 #     build · seguridad · Sonar · imagen ─► DEV          Despliegue DEV → Pruebas DEV
@@ -10,7 +10,7 @@
 #     build · seguridad · Sonar · imagen ─► release del cambio   vX.Y.Z-rc.N
 #                                         + release de reversión (lo que hoy corre en prod)
 #                                         + issue de pase
-#     QA: congela (cambio) ─► revierte (reversión) ─► recongela (cambio)
+#     CERT: congela (cambio) ─► revierte (reversión) ─► recongela (cambio)
 #                                                     Congelamiento (doing) → (done)
 #
 #   El pase a producción (agenda, aprobación de admin, ejecución automática,
@@ -18,7 +18,7 @@
 #
 # Cada ambiente es un clúster k3s con Argo CD: desplegar es un commit en
 # qt-gitops con el digest de la imagen. La MISMA imagen firmada de master va a
-# QA y a producción.
+# CERT y a producción.
 # =============================================================================
 name: service-cd
 
@@ -33,7 +33,7 @@ on:
         type: string
         default: "."
       channel:
-        description: "Canal que espera el workflow que llama: dev (CICD DEV) o freeze (CICD QA). Vacío = según la rama"
+        description: "Canal que espera el workflow que llama: dev (CICD DEV) o freeze (CICD CERT). Vacío = según la rama"
         type: string
         default: ""
 
@@ -402,13 +402,13 @@ jobs:
       - name: Tag de la imagen (mismo digest, misma firma)
         run: docker buildx imagetools create --tag "${IMAGE}:${TAG}" "${IMAGE}@${DIGEST}"
 
-  qa-congela:
-    name: QA · congela
+  cert-congela:
+    name: CERT · congela
     needs: [freeze, image]
     if: "!cancelled() && needs.freeze.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
-      environment: qa
+      environment: cert
       image: ${{ needs.freeze.outputs.image }}
       digest: ${{ needs.freeze.outputs.digest }}
       version: ${{ needs.freeze.outputs.tag }}
@@ -418,13 +418,13 @@ jobs:
       attestations: read
       id-token: write
 
-  qa-revierte:
-    name: QA · revierte
-    needs: [freeze, qa-congela]
-    if: "!cancelled() && needs.qa-congela.result == 'success'"
+  cert-revierte:
+    name: CERT · revierte
+    needs: [freeze, cert-congela]
+    if: "!cancelled() && needs.cert-congela.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
-      environment: qa
+      environment: cert
       image: ${{ needs.freeze.outputs.reversion_image }}
       digest: ${{ needs.freeze.outputs.reversion_digest }}
       version: ${{ needs.freeze.outputs.reversion_label }}
@@ -435,13 +435,13 @@ jobs:
       attestations: read
       id-token: write
 
-  qa-recongela:
-    name: QA · recongela
-    needs: [freeze, image, qa-revierte]
-    if: "!cancelled() && needs.qa-revierte.result == 'success'"
+  cert-recongela:
+    name: CERT · recongela
+    needs: [freeze, image, cert-revierte]
+    if: "!cancelled() && needs.cert-revierte.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
-      environment: qa
+      environment: cert
       image: ${{ needs.freeze.outputs.image }}
       digest: ${{ needs.freeze.outputs.digest }}
       version: ${{ needs.freeze.outputs.tag }}
@@ -453,7 +453,7 @@ jobs:
 
   freeze-result:
     name: Tablero · Congelamiento (done)
-    needs: [freeze, qa-congela, qa-revierte, qa-recongela]
+    needs: [freeze, cert-congela, cert-revierte, cert-recongela]
     if: always() && needs.freeze.result == 'success'
     runs-on: [self-hosted, linux, qt-platform]
     timeout-minutes: 5
@@ -487,20 +487,20 @@ jobs:
           ISSUE: ${{ needs.freeze.outputs.issue }}
           TAG: ${{ needs.freeze.outputs.tag }}
           REV_LABEL: ${{ needs.freeze.outputs.reversion_label }}
-          CONGELA: ${{ needs.qa-congela.result }}
-          REVIERTE: ${{ needs.qa-revierte.result }}
-          RECONGELA: ${{ needs.qa-recongela.result }}
+          CONGELA: ${{ needs.cert-congela.result }}
+          REVIERTE: ${{ needs.cert-revierte.result }}
+          RECONGELA: ${{ needs.cert-recongela.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           icon() { [[ "$1" == "success" ]] && echo "✅" || echo "❌ (${1})"; }
-          table="| Paso | En QA | Resultado |
+          table="| Paso | En CERT | Resultado |
           |---|---|---|
           | Congela | \`${TAG}\` | $(icon "$CONGELA") |
           | Revierte | ${REV_LABEL} | $(icon "$REVIERTE") |
           | Recongela | \`${TAG}\` | $(icon "$RECONGELA") |"
           if [[ "$CONGELA" == success && "$REVIERTE" == success && "$RECONGELA" == success ]]; then
             bash .qt-infra/.github/scripts/pase.sh lane "$ISSUE" "Congelamiento (done)" \
-              "🧊 **Congelamiento completo**: el cambio y su reversión funcionan en QA.
+              "🧊 **Congelamiento completo**: el cambio y su reversión funcionan en CERT.
 
           ${table}
 

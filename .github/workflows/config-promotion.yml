@@ -1,0 +1,46 @@
+# =============================================================================
+# Promoción automática de qt-config (la llama promocion.yml de qt-config).
+# Tras cada merge en pre-develop o develop abre o actualiza el PR hacia la rama
+# siguiente: pre-develop → develop (cert) → master (prod). Un admin lo aprueba y
+# se mergea solo (merge commit: las tres ramas comparten historia).
+# =============================================================================
+name: config-promotion
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: PR de promoción
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Scripts de la plataforma (qt-infra)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App (qt-config)
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+          vault-role: gha-config-promotion
+
+      - name: Abrir o actualizar el PR de promoción
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: bash .qt-infra/.github/scripts/config-promotion.sh "$GITHUB_REF_NAME"

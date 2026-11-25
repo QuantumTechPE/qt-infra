@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cluster-config
 description: >
-  Configuración de plataforma de cada clúster (dev | qa | prod): conexión de
+  Configuración de plataforma de cada clúster (dev | cert | prod): conexión de
   External Secrets con Vault y política de Kyverno que solo admite imágenes
   firmadas por el pipeline corporativo.
 type: application

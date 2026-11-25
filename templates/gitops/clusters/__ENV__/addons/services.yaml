@@ -1,7 +1,9 @@
 # Una aplicación de Argo CD por cada carpeta apps/<servicio>/__ENV__ de este repo.
 # Dar de alta un microservicio = crear esa carpeta (lo hace qt-infra/scripts/new-service.sh).
-# apps/<servicio>/__ENV__/values.yaml es un SNAPSHOT completo que escribe el pipeline
-# de CD a partir de deploy/ del repo del servicio (recursos, HPA, ConfigMaps, imagen).
+# apps/<servicio>/__ENV__/ tiene dos archivos de valores:
+#   values.yaml   snapshot TÉCNICO (recursos, HPA, imagen): lo escribe el CD del servicio
+#   config.yaml   CONFIGURACIÓN del ambiente (ConfigMaps, secretos declarados): la
+#                 escribe el CICD de qt-config (y también cada promoción del servicio)
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -32,6 +34,9 @@ spec:
             releaseName: '{{ index .path.segments 1 }}'
             valueFiles:
               - '$values/{{ .path.path }}/values.yaml'
+              - '$values/{{ .path.path }}/config.yaml'
+            # Un servicio recién dado de alta aún no tiene config.yaml
+            ignoreMissingValueFiles: true
             # Los fija el clúster (no el servicio): ambiente y dominio del Ingress
             parameters:
               - name: environment

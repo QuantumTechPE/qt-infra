@@ -3,7 +3,7 @@
 #
 # El pipeline NO compila dentro de Docker: descarga el artefacto `quarkus-app`
 # del job de build, verifica su SHA-256 y recién entonces lo empaqueta aquí
-# ("build once, deploy many": la misma imagen recorre dev → qa → prod).
+# ("build once, deploy many": la misma imagen recorre dev → cert → prod).
 #
 # Build local:
 #   ./mvnw package && docker build -t qt-template-quarkus .

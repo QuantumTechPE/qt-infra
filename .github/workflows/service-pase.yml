@@ -1,9 +1,9 @@
 # =============================================================================
 # Pase a producción y reversiones. Lo llaman, en cada repo de servicio:
 #   CICD PROD       (cicd-prod.yml)       /agendar, ejecución agendada, /ratificar
-#   CICD QA REV     (cicd-qa-rev.yml)     /rechazar
+#   CICD CERT REV     (cicd-cert-rev.yml)     /rechazar
 #   CICD PROD REV   (cicd-prod-rev.yml)   /revertir
-# Todo ocurre en el issue de pase que abre el congelamiento (CICD QA):
+# Todo ocurre en el issue de pase que abre el congelamiento (CICD CERT):
 #
 #   /rechazar <motivo>          Pruebas QA → Rechazo QA: descarta el release y QA
 #                               vuelve a lo que corre en producción (reversión)
@@ -154,14 +154,14 @@ jobs:
           export APPROVER
           bash .qt-infra/.github/scripts/pase.sh approve "$ISSUE"
 
-  # ------------------------------------------------------------------ reversión QA (/rechazar)
-  revertir-qa:
-    name: CICD QA REV
+  # ------------------------------------------------------------------ reversión CERT (/rechazar)
+  revertir-cert:
+    name: CICD CERT REV
     needs: command
     if: needs.command.outputs.cmd == 'rechazar'
     uses: $/.github/workflows/_promote.yml
     with:
-      environment: qa
+      environment: cert
       image: ${{ needs.command.outputs.image }}
       digest: ${{ needs.command.outputs.digest }}
       version: ${{ needs.command.outputs.label }}
@@ -172,9 +172,9 @@ jobs:
       attestations: read
       id-token: write
 
-  revertido-qa:
-    name: Resultado de la reversión QA
-    needs: [command, revertir-qa]
+  revertido-cert:
+    name: Resultado de la reversión CERT
+    needs: [command, revertir-cert]
     if: always() && needs.command.result == 'success' && needs.command.outputs.cmd == 'rechazar'
     runs-on: [self-hosted, linux, qt-platform]
     timeout-minutes: 5
@@ -205,13 +205,13 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE: ${{ needs.command.outputs.issue }}
           LABEL: ${{ needs.command.outputs.label }}
-          RESULT: ${{ needs.revertir-qa.result }}
+          RESULT: ${{ needs.revertir-cert.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [[ "$RESULT" == success ]]; then
-            msg="↩️ **Reversión QA completada**: QA ejecuta **${LABEL}** (lo que corre en producción)."
+            msg="↩️ **Reversión CERT completada**: CERT ejecuta **${LABEL}** (lo que corre en producción)."
           else
-            msg="🚨 **La reversión QA falló** (${RUN_URL}). Revisa Argo CD de QA y re-ejecuta el job."
+            msg="🚨 **La reversión CERT falló** (${RUN_URL}). Revisa Argo CD de CERT y re-ejecuta el job."
           fi
           gh api -X POST "repos/${REPO}/issues/${ISSUE}/comments" -f body="$msg" > /dev/null
           [[ "$RESULT" == success ]]

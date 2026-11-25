@@ -1,4 +1,4 @@
-# dev | qa | prod (lo inyecta la aplicación de Argo CD de cada clúster)
+# dev | cert | prod (lo inyecta la aplicación de Argo CD de cada clúster)
 environment: dev
 
 grafana:

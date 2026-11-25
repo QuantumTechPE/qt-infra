@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # Administración de secretos de un microservicio por ambiente (solo admins):
-#   service-secret.sh list <servicio> <dev|qa|prod>          nombres de las claves (nunca valores)
-#   service-secret.sh set  <servicio> <dev|qa|prod> <CLAVE>  lee el valor por stdin
-#   service-secret.sh generate <servicio> <dev|qa|prod> <CLAVE>  valor aleatorio (rotación)
+#   service-secret.sh list <servicio> <dev|cert|prod>          nombres de las claves (nunca valores)
+#   service-secret.sh set  <servicio> <dev|cert|prod> <CLAVE>  lee el valor por stdin
+#   service-secret.sh generate <servicio> <dev|cert|prod> <CLAVE>  valor aleatorio (rotación)
 # Ruta: secret/apps/<servicio>/<ambiente>. External Secrets lo sincroniza al
 # clúster del ambiente en ≤ 15 min; los pods lo toman en su próximo reinicio.
 # -----------------------------------------------------------------------------

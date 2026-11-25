@@ -1,12 +1,13 @@
 # =============================================================================
 # Valores por defecto del chart qt-service.
 #
-# Cada microservicio define los suyos en su repo (carpeta deploy/):
-#   deploy/values.yaml          común a los 3 ambientes
-#   deploy/values-<env>.yaml    plan de recursos, réplicas, HPA, PDB, ConfigMap del ambiente
-#   deploy/config/<env>/*       archivos de configuración (application.properties, config.json)
-#   deploy/vault/secrets.yaml   claves de Vault que necesita
-# El pipeline los compone en qt-gitops/apps/<servicio>/<env>/values.yaml al promover.
+# Argo CD combina dos archivos de qt-gitops/apps/<servicio>/<env>/:
+#   values.yaml   lo TÉCNICO, compuesto desde deploy/ del microservicio:
+#                   deploy/values.yaml (común) + deploy/values-<env>.yaml (recursos,
+#                   réplicas, HPA, PDB) + imagen
+#   config.yaml   la CONFIGURACIÓN del ambiente, desde el repo qt-config
+#                   (<env>/<servicio>-<env>.yaml): config, configFiles.files y
+#                   secrets.enabled
 # =============================================================================
 
 global:
@@ -16,7 +17,7 @@ global:
 # Nombre del servicio (por defecto, el releaseName que pone Argo CD = repo).
 nameOverride: ""
 
-# dev | qa | prod. Lo fuerza el ApplicationSet de cada clúster.
+# dev | cert | prod. Lo fuerza el ApplicationSet de cada clúster.
 environment: dev
 
 image:

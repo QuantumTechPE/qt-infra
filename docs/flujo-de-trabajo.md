@@ -10,7 +10,7 @@
 
 ## Ciclo de vida de una historia
 
-Cada historia, bug o tarea recibe un **código correlativo de la organización**: `QT-1`, `QT-2`… (sin saltos, en cualquier repo). Su rama es `qt/<n>`. **Sin historia no hay despliegue**: solo las ramas `qt/<n>` de una historia abierta llegan a DEV, y QA y producción salen únicamente de `master`.
+Cada historia, bug o tarea recibe un **código correlativo de la organización**: `QT-1`, `QT-2`… (sin saltos, en cualquier repo). Su rama es `qt/<n>`. **Sin historia no hay despliegue**: solo las ramas `qt/<n>` de una historia abierta llegan a DEV, y CERT y producción salen únicamente de `master`.
 
 ```
 Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rechazar)──► Rechazo DEV
@@ -34,8 +34,8 @@ Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rec
 | **Despliegue DEV** | `git push` a `qt/<n>` | Build, tests, Sonar (análisis de rama), seguridad, imagen firmada → DEV |
 | **Pruebas DEV** | DEV quedó *Healthy* | Comenta en la historia la versión desplegada |
 | **Rechazo DEV** | `/rechazar <motivo>` en la historia | Vuelve a desarrollo; el siguiente push redespliega |
-| **Congelamiento (doing)** | PR `qt/<n>` → `master` aprobado y mergeado | Release del **cambio** `vX.Y.Z-rc.N` + release de **reversión** + **issue de pase**; en QA: **congela → revierte → recongela** |
-| **Congelamiento (done)** | Los tres pasos quedaron *Healthy* | El cambio y su reversión están probados en QA |
+| **Congelamiento (doing)** | PR `qt/<n>` → `master` aprobado y mergeado | Release del **cambio** `vX.Y.Z-rc.N` + release de **reversión** + **issue de pase**; en CERT: **congela → revierte → recongela** |
+| **Congelamiento (done)** | Los tres pasos quedaron *Healthy* | El cambio y su reversión están probados en CERT |
 | **Pruebas QA** | QA toma el release (arrastrando el pase) | — |
 | **Rechazo QA** | `/rechazar <motivo>` en el issue de pase | Marca los releases como rechazados, cierra el pase y recrea `qt/<n>` para corregir |
 | **Gestión de pase** | `/agendar AAAA-MM-DD HH:MM` (hora de Lima) | Pide la **aprobación de un admin** (environment `pase-produccion`); aprobado, queda agendado en Vault |
@@ -52,11 +52,11 @@ Convenciones (check "PR Lint / Convenciones"):
 
 | Workflow | Se ejecuta | Qué hace |
 |---|---|---|
-| **CI** | Cada PR a `master` | Validación de `deploy/` (dev, qa, prod). En PRs sin historia (Dependabot, GitHub App) también build, tests, Sonar, seguridad e imagen |
+| **CI** | Cada PR a `master` | Validación de `deploy/` (dev, cert, prod). En PRs sin historia (Dependabot, GitHub App) también build, tests, Sonar, seguridad e imagen |
 | **CICD DEV** | Push a `qt/<n>` (historia abierta) | **Todas las validaciones** (tests, cobertura, Sonar, Gitleaks, Semgrep, Trivy) + imagen firmada → **DEV**. Marca el commit con `deploy/dev` |
-| **CICD QA** | Merge a `master` | **Congelamiento** sin repetir validaciones: build sin tests e imagen firmada → release del cambio y de reversión → QA congela, revierte y recongela → issue de pase |
+| **CICD CERT** | Merge a `master` | **Congelamiento** sin repetir validaciones: build sin tests e imagen firmada → release del cambio y de reversión → CERT congela, revierte y recongela → issue de pase |
 | **CICD PROD** | `/agendar`, `/ratificar` en el issue de pase, y la ejecución agendada | Aprobación del admin, despliegue a **producción** a la hora agendada, release final `vX.Y.Z` |
-| **CICD QA REV** | `/rechazar` en el issue de pase | Descarta el release y QA vuelve a lo que corre en producción |
+| **CICD CERT REV** | `/rechazar` en el issue de pase | Descarta el release y CERT vuelve a lo que corre en producción |
 | **CICD PROD REV** | `/revertir` en el issue de pase (solo admins) | Producción vuelve a la versión anterior con el release de reversión |
 | Auto · Gobierno, Auto · Gobierno (evento), Auto · Tablero, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero y convenciones |
 
@@ -82,18 +82,18 @@ El merge es automático cuando se cumple **todo** esto; la aprobación del admin
 
 ## Congelamiento y releases
 
-Cada merge a `master` congela un release y prueba en QA que **se puede revertir**:
+Cada merge a `master` congela un release y prueba en CERT que **se puede revertir**:
 
-| Paso en QA | Despliega |
+| Paso en CERT | Despliega |
 |---|---|
 | Congela | El release del cambio `vX.Y.Z-rc.N` (imagen de `master` + `deploy/` de ese commit) |
 | Revierte | El release de reversión `vX.Y.Z-rc.N-reversion`: **lo que hoy corre en producción** según `qt-gitops`, con la configuración de su propio commit. Si aún no hay nada en producción, la reversión **retira** el servicio |
-| Recongela | De nuevo el release del cambio, que queda en QA para las pruebas |
+| Recongela | De nuevo el release del cambio, que queda en CERT para las pruebas |
 
 - Ambos releases se publican en GitHub Releases con `despliegue.json` (imagen, digest y commit). El del cambio también lleva binarios, SBOM y `SHA256SUMS` firmados.
 - Un congelamiento nuevo **reemplaza** a los pases aún no ejecutados y anula su agenda.
-- **Una sola imagen** (mismo `sha256`) va de QA a producción.
-- Antes de desplegar, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde la rama de ese run (`qt/<n>` en DEV, `master` en QA y producción).
+- **Una sola imagen** (mismo `sha256`) va de CERT a producción.
+- Antes de desplegar, el pipeline verifica la **firma cosign** y la **procedencia SLSA**: la imagen la construyó `qt-infra` desde la rama de ese run (`qt/<n>` en DEV, `master` en CERT y producción).
 - En el clúster, **Kyverno** rechaza cualquier imagen no firmada por el pipeline.
 - Si Argo CD no queda *Synced + Healthy*, el pipeline **revierte el commit GitOps** y Argo CD vuelve a la versión anterior. Como el rollout usa `maxUnavailable: 0`, la versión fallida nunca recibe tráfico.
 
@@ -117,23 +117,43 @@ Todo ocurre en el **issue de pase** (`[PASE] <servicio> vX.Y.Z-rc.N`), con coman
 
 1. **Actions → Nuevo microservicio → Run workflow** (nombre, `backend` o `frontend`, ruta pública), o un issue **🧩 Nuevo microservicio** en `qt-infra` al que se le agrega el label `aprobado`.
 2. Un admin aprueba el environment `provisioning`.
-3. El workflow crea el repo con el esqueleto y la carpeta `deploy/`, lo protege, crea sus secretos por ambiente en Vault y abre el PR de alta en `qt-gitops` (1 admin).
+3. El workflow:
+   - crea el repo con el esqueleto y la carpeta `deploy/`, y lo protege;
+   - crea sus secretos por ambiente en Vault;
+   - abre el PR de alta en `qt-gitops` y el PR de su configuración en `qt-config` (1 admin cada uno).
 
-## Configuración por ambiente: carpeta `deploy/` del microservicio
+## Configuración por ambiente: `deploy/` del micro + repo `qt-config`
+
+**Lo técnico** viaja con la versión, en la carpeta `deploy/` del microservicio:
 
 | Qué | Archivo (en el repo del servicio) | Llega al pod como |
 |---|---|---|
-| Puerto, probes, ruta pública, métricas | `deploy/values.yaml` | Deployment, Service, Ingress, ServiceMonitor |
-| **Plan de recursos**, réplicas, **HPA**, PDB, reparto entre nodos | `deploy/values-{dev,qa,prod}.yaml` | Deployment, HorizontalPodAutoscaler, PodDisruptionBudget |
-| Variables de entorno no secretas | `config:` en los mismos archivos | ConfigMap → env |
-| **Properties** de Quarkus / `config.json` de Angular | `deploy/config/{dev,qa,prod}/` | ConfigMap montado como archivo |
-| **Secretos** (solo nombres) | `deploy/vault/secrets.yaml` | Vault `secret/apps/<svc>/<env>` → External Secrets → env |
+| Puerto, probes, ruta pública, métricas, `requiredConfig` | `deploy/values.yaml` | Deployment, Service, Ingress, ServiceMonitor |
+| **Plan de recursos**, réplicas, **HPA**, PDB, reparto entre nodos | `deploy/values-{dev,cert,prod}.yaml` | Deployment, HorizontalPodAutoscaler, PodDisruptionBudget |
 
-- Un cambio en `deploy/` pasa por PR (el CI renderiza y valida dev, qa y prod, y publica el plan de recursos en el resumen).
-- Viaja con la versión: dev lo recibe con el push a `qt/<n>`, qa con el congelamiento y prod con el pase.
-- El pipeline compone `qt-gitops/apps/<svc>/<env>/values.yaml`; no se edita a mano.
+**La configuración** de todos los micros, backend y frontend, vive en el repo **`qt-config`**. Cada ambiente lee su carpeta desde su rama:
 
-**Prioridad en Quarkus:** variables de entorno (Secret y `config:`) > `deploy/config/<env>/application.properties` > `src/main/resources/application.properties`.
+| Ambiente | Rama | Archivo |
+|---|---|---|
+| dev | `pre-develop` | `dev/<servicio>-dev.yaml` |
+| cert | `develop` | `cert/<servicio>-cert.yaml` |
+| prod | `master` | `prod/<servicio>-prod.yaml` |
+
+| Sección del archivo | Qué | Llega al pod como |
+|---|---|---|
+| `env:` | Variables de entorno no secretas | ConfigMap `<servicio>-config` → env |
+| `files:` | **Properties** de Quarkus / `config.json` de Angular | ConfigMap `<servicio>-files` montado como archivo |
+| `secrets:` | **Nombres** de los secretos (los valores, en Vault) | Vault `secret/apps/<svc>/<env>` → External Secrets → env |
+
+- **Un cambio de configuración** es un PR contra `pre-develop`. Al mergear, **CICD DEV** lo aplica. La plataforma abre los PRs `pre-develop` → `develop` (**CICD CERT**) y `develop` → `master` (**CICD PROD**), cada uno con 1 aprobación de admin. No hace falta una versión nueva del micro.
+- **Cada CICD de qt-config:**
+  - crea en Vault las claves nuevas con `generate: true`, sin pisar nunca un valor;
+  - escribe `qt-gitops/apps/<svc>/<env>/config.yaml`;
+  - espera a que Argo CD deje los pods *Healthy*, y si no, hace rollback.
+- **Cada despliegue de una versión** (DEV, congelamiento y pase) verifica que `qt-config` del ambiente tenga lo que esa versión declara en `requiredConfig`. Si falta algo, se frena antes de desplegar.
+- Detalle completo: [configuracion.md](configuracion.md).
+
+**Prioridad en Quarkus:** variables de entorno (Secret y `env:`) > `files: application.properties` de qt-config > `src/main/resources/application.properties`.
 
 **Secretos por ambiente** (solo admins; los valores nunca pasan por git):
 
@@ -147,15 +167,15 @@ External Secrets lo sincroniza en ≤ 15 min, y cada clúster solo lee los secre
 
 ## Dónde corre cada validación
 
-Las validaciones de calidad y seguridad corren **una sola vez, en DEV**. QA y producción despliegan exactamente el código y la imagen que ya pasaron por ahí.
+Las validaciones de calidad y seguridad corren **una sola vez, en DEV**. CERT y producción despliegan exactamente el código y la imagen que ya pasaron por ahí.
 
-| Validación | Bloquea si… | CICD DEV | CI (PR de historia) | CI (PR automático) | CICD QA / PROD |
+| Validación | Bloquea si… | CICD DEV | CI (PR de historia) | CI (PR automático) | CICD CERT / PROD |
 |---|---|---|---|---|---|
 | Build y tests con cobertura (Maven `--strict-checksums` / `npm ci` + `npm audit signatures`) | Falla un test o el checksum o firma de una dependencia | ✅ | — | ✅ | Solo build, sin tests |
 | SonarQube | No pasa el Quality Gate del código nuevo | ✅ | — | ✅ | — |
 | Gitleaks · Semgrep · Trivy (repo) | Hay secretos, SAST ERROR o CVEs HIGH/CRITICAL con fix | ✅ | — | ✅ | — |
 | Imagen + Trivy | La imagen tiene CVEs HIGH/CRITICAL con fix | ✅ | — | ✅ | Solo build, firma y SBOM |
-| Despliegue (dev, qa, prod) | `deploy/` no renderiza o produce manifiestos inválidos | ✅ (al desplegar) | ✅ | ✅ | ✅ (al desplegar) |
+| Despliegue (dev, cert, prod) | `deploy/` no renderiza o produce manifiestos inválidos | ✅ (al desplegar) | ✅ | ✅ | ✅ (al desplegar) |
 
 - **PRs de historia:** el CI no repite nada, porque el check `deploy/dev` garantiza que el **mismo commit** ya pasó CICD DEV con todas las validaciones.
 - **PRs automáticos** (Dependabot, GitHub App): no pasan por DEV, así que el CI los valida completos.

@@ -18,7 +18,7 @@ jobs:
       contains(github.event.issue.labels.*.name, 'pase') &&
       startsWith(github.event.comment.body, '/revertir')
     # El turno se toma DENTRO del job (no a nivel workflow): un comentario dispara
-    # CICD PROD, CICD QA REV y CICD PROD REV, y los que no aplican se saltan sin
+    # CICD PROD, CICD CERT REV y CICD PROD REV, y los que no aplican se saltan sin
     # ocupar el turno ni cancelar al que sí corre.
     concurrency:
       group: pase-${{ github.event.issue.number || github.event.client_payload.issue }}

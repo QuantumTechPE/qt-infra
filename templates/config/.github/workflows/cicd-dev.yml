@@ -1,0 +1,21 @@
+# CICD DEV · merge en pre-develop → el clúster dev toma dev/<servicio>-dev.yaml:
+# secretos declarados → Vault, config.yaml → qt-gitops, Argo CD Synced + Healthy.
+name: CICD DEV
+
+on:
+  push:
+    branches: [pre-develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cd:
+    name: CICD
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/config-cd.yml@master
+    with:
+      environment: dev
+    permissions:
+      contents: read
+      id-token: write

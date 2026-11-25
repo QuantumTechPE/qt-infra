@@ -1,15 +1,16 @@
-# Interno: promoción GitOps de una imagen a un ambiente (dev | qa | prod).
+# Interno: promoción GitOps de una imagen a un ambiente (dev | cert | prod).
 #
 #   1. Verifica firma cosign: la imagen debe venir de qt-infra/_image.yml,
-#      construida desde la rama de ESTE run (qt/<n> en DEV, master en QA/PROD).
+#      construida desde la rama de ESTE run (qt/<n> en DEV, master en CERT/PROD).
 #      Digest vacío = RETIRO (reversión de un servicio que aún no tenía versión).
-#   2. Escribe el digest en qt-gitops/apps/<servicio>/<ambiente>/values.yaml
-#      (token de la GitHub App acotado solo al repo GitOps).
-#   3. Espera a que Argo CD del clúster quede Synced + Healthy.
+#   2. Verifica la configuración del ambiente en qt-config (archivo + requiredConfig).
+#   3. Escribe el digest en qt-gitops/apps/<servicio>/<ambiente>/values.yaml y la
+#      configuración vigente en config.yaml (token de la App acotado al repo GitOps).
+#   4. Espera a que Argo CD del clúster quede Synced + Healthy.
 #      Si falla, revierte el commit GitOps (rollback automático).
 #
 # El job usa el environment de GitHub del mismo nombre (dev solo acepta ramas
-# qt/*; qa y prod solo master). La aprobación de producción se da al agendar el
+# qt/*; cert y prod solo master). La aprobación de producción se da al agendar el
 # pase (environment pase-produccion), no aquí.
 name: _promote
 
@@ -133,12 +134,39 @@ jobs:
             secret/data/platform/argocd/${{ inputs.environment }} url | ARGOCD_URL ;
             secret/data/platform/argocd/${{ inputs.environment }} token | ARGOCD_TOKEN
 
-      - name: Commit en GitOps (snapshot de deploy/ + imagen)
+      # La versión se despliega con la configuración VIGENTE de su ambiente en
+      # qt-config (dev ← pre-develop, cert ← develop, prod ← master). Si falta el
+      # archivo o algo de requiredConfig, se frena aquí, antes de tocar GitOps.
+      - name: Configuración del ambiente (qt-config)
+        id: config
+        if: inputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFIG_REPO: ${{ github.repository_owner }}/${{ vars.CONFIG_REPO || 'qt-config' }}
+        run: |
+          source .qt-infra/.github/scripts/lib-gh.sh
+          source .qt-infra/.github/scripts/config-lib.sh
+          branch="$(config_branch "$ENVIRONMENT")"
+          path="$(config_path "$SERVICE" "$ENVIRONMENT")"
+          cfg="$RUNNER_TEMP/qt-config.yaml"
+          if ! config_fetch "$CONFIG_REPO" "$SERVICE" "$ENVIRONMENT" "$cfg"; then
+            echo "::error::No existe ${path} en la rama ${branch} de ${CONFIG_REPO}: créalo con un PR en qt-config antes de desplegar en ${ENVIRONMENT}."
+            exit 1
+          fi
+          bash .qt-infra/.github/scripts/config-check.sh .service/deploy/values.yaml "$cfg" "$ENVIRONMENT" "$SERVICE"
+          sha="$(gh api "repos/${CONFIG_REPO}/commits/${branch}" --jq .sha)"
+          SOURCE="${CONFIG_REPO}@${sha:0:7} (${branch}:${path})" \
+            bash .qt-infra/.github/scripts/config-render.sh "$cfg" "$RUNNER_TEMP/config-values.yaml"
+          echo "values=$RUNNER_TEMP/config-values.yaml" >> "$GITHUB_OUTPUT"
+          echo "🧩 Configuración: ${CONFIG_REPO} ${branch}:${path} (${sha:0:7})" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit en GitOps (snapshot de deploy/ + imagen + configuración)
         id: gitops
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           SERVICE_DIR: .service
           SOURCE_SHA: ${{ inputs.ref || github.sha }}
+          CONFIG_VALUES: ${{ steps.config.outputs.values }}
         run: bash .qt-infra/.github/scripts/gitops-promote.sh promote
 
       - name: Esperar a Argo CD (Synced + Healthy)

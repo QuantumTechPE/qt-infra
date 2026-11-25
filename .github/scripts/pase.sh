@@ -165,9 +165,9 @@ command_pase() {
       for t in "$(jq -r '.tag' <<<"$data")" "$(jq -r '.reversion.tag' <<<"$data")"; do
         gh release edit "$t" --repo "$REPO" --title "${t} · RECHAZADO" >/dev/null 2>&1 || true
       done
-      comment "$REPO" "$issue" "❌ **Rechazado en QA** por @${user}: ${arg:-sin motivo}. Releases marcados como rechazados; QA vuelve a **$(jq -r '.reversion.label' <<<"$data")** (CICD QA REV). Ramas para corregir:${msg}"
+      comment "$REPO" "$issue" "❌ **Rechazado en QA** por @${user}: ${arg:-sin motivo}. Releases marcados como rechazados; CERT vuelve a **$(jq -r '.reversion.label' <<<"$data")** (CICD QA REV). Ramas para corregir:${msg}"
       gh api -X PATCH "repos/${REPO}/issues/${issue}" -f state=closed -f state_reason=not_planned >/dev/null
-      # Reversión QA: QA vuelve a lo que corre en producción (release de reversión)
+      # Reversión CERT: CERT vuelve a lo que corre en producción (release de reversión)
       {
         echo "cmd=rechazar"
         echo "image=$(jq -r '.reversion.image' <<<"$data")"

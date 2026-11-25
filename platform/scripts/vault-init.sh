@@ -60,7 +60,20 @@ for env in "${ENVIRONMENTS[@]}"; do
 path "secret/data/platform/github-app" { capabilities = ["read"] }
 path "secret/data/platform/argocd/${env}" { capabilities = ["read"] }
 EOF
+  # CD de qt-config del ambiente: config.yaml en qt-gitops (GitHub App), espera de
+  # Argo CD y secretos declarados de los servicios. En secret/apps/*/<env> lee los
+  # NOMBRES de las claves y solo AGREGA las que faltan (create/patch: el script
+  # nunca reescribe un valor existente).
+  vault policy write "config-${env}" - >/dev/null <<EOF
+path "secret/data/platform/github-app" { capabilities = ["read"] }
+path "secret/data/platform/argocd/${env}" { capabilities = ["read"] }
+path "secret/data/apps/+/${env}" { capabilities = ["read", "create", "patch"] }
+EOF
 done
+vault policy write config-promotion - >/dev/null <<'EOF'
+# Promoción de qt-config entre ramas: abre/actualiza PRs (GitHub App)
+path "secret/data/platform/github-app" { capabilities = ["read"] }
+EOF
 ok "Policies cargadas"
 
 # ------------------------------------------------------------ JWT / OIDC GitHub Actions
@@ -125,7 +138,7 @@ write_role gha-provision "automation,provision" string \
       environment: "provisioning",
       job_workflow_ref: "\($w)/new-service.yml@refs/heads/master"}')"
 
-# Promoción: DEV solo desde ramas de historia (qt/<n>); QA y PROD solo desde master.
+# Promoción: DEV solo desde ramas de historia (qt/<n>); CERT y PROD solo desde master.
 for env in "${ENVIRONMENTS[@]}"; do
   ref="refs/heads/master"
   [[ "$env" == "dev" ]] && ref="refs/heads/qt/*"
@@ -136,6 +149,24 @@ for env in "${ENVIRONMENTS[@]}"; do
         environment: $e,
         job_workflow_ref: "\($w)/_promote.yml@*"}')"
 done
+
+# Repo de configuración (qt-config): cada ambiente SOLO desde su rama
+# (dev ← pre-develop, cert ← develop, prod ← master) y su environment de GitHub.
+CONFIG_REPO="${CONFIG_REPO:-qt-config}"
+for env in "${ENVIRONMENTS[@]}"; do
+  case "$env" in dev) branch=pre-develop ;; cert) branch=develop ;; prod) branch=master ;; esac
+  write_role "gha-config-${env}" "config-${env}" string \
+    "$(jq -n --arg r "${GITHUB_OWNER}/${CONFIG_REPO}" --arg w "$WF" --arg e "$env" --arg b "$branch" '{
+        repository: $r,
+        ref: "refs/heads/\($b)",
+        environment: $e,
+        job_workflow_ref: "\($w)/config-cd.yml@refs/heads/master"}')"
+done
+write_role gha-config-promotion "config-promotion" string \
+  "$(jq -n --arg r "${GITHUB_OWNER}/${CONFIG_REPO}" --arg w "$WF" '{
+      repository: $r,
+      ref: ["refs/heads/pre-develop", "refs/heads/develop"],
+      job_workflow_ref: "\($w)/config-promotion.yml@refs/heads/master"}')"
 
 # ------------------------------------------------------------ AppRole (runners)
 if ! vault auth list -format=json | jq -e '."approle/"' >/dev/null; then

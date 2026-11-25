@@ -12,8 +12,8 @@
 {{- if not .Values.image.repository -}}
 {{- fail "image.repository es obligatorio" -}}
 {{- end -}}
-{{- if not (has .Values.environment (list "dev" "qa" "prod")) -}}
-{{- fail (printf "environment inválido: %q (dev | qa | prod)" .Values.environment) -}}
+{{- if not (has .Values.environment (list "dev" "cert" "prod")) -}}
+{{- fail (printf "environment inválido: %q (dev | cert | prod)" .Values.environment) -}}
 {{- end -}}
 true
 {{- end -}}
