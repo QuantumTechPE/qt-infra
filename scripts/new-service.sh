@@ -91,7 +91,16 @@ dest="${dest:-$(dirname "$root")/${name}}"
 description="${description:-Microservicio ${name} (${type})}"
 
 [[ ! -e "$dest" ]] || die "Ya existe ${dest}"
-! gh repo view "${OWNER}/${name}" >/dev/null 2>&1 || die "Ya existe el repo ${OWNER}/${name}"
+# Reanudable: si una ejecución anterior se cortó DESPUÉS de crear el repo (p. ej.
+# por un error de GitHub), se continúa con los pasos que faltan (todos idempotentes).
+resume=false
+if gh repo view "${OWNER}/${name}" >/dev/null 2>&1; then
+  first="$(gh api "repos/${OWNER}/${name}/commits?per_page=100" --jq '.[-1].commit.message' 2>/dev/null | head -n1 || true)"
+  [[ "$first" == "chore: alta del microservicio ${name} desde la plantilla"* ]] ||
+    die "Ya existe el repo ${OWNER}/${name} y no lo creó la plataforma"
+  resume=true
+  warn "El repo ${OWNER}/${name} ya existe (alta anterior incompleta): se reanuda desde donde quedó"
+fi
 PROJECT_NUMBER="$(gh variable get PROJECT_NUMBER --org "$OWNER" 2>/dev/null || true)"
 export PROJECT_NUMBER # lo usa configure_repo
 
@@ -141,8 +150,12 @@ ok "Código generado desde templates/service-${stack}"
   # [skip ci]: el primer despliegue ocurre cuando el alta en GitOps esté aprobada.
   git commit -q -m "chore: alta del microservicio ${name} desde la plantilla ${type} [skip ci]"
 )
-gh repo create "${OWNER}/${name}" --public --description "$description" >/dev/null
-git -C "$dest" push -q "$(git_url "${OWNER}/${name}")" master
+if [[ "$resume" == true ]]; then
+  ok "Repo ${OWNER}/${name} ya creado: se conserva su código"
+else
+  gh repo create "${OWNER}/${name}" --public --description "$description" >/dev/null
+  git -C "$dest" push -q "$(git_url "${OWNER}/${name}")" master
+fi
 # Rama principal de la organización: master (explícito, sin depender del primer push)
 gh repo edit "${OWNER}/${name}" --default-branch master >/dev/null
 ok "Repo https://github.com/${OWNER}/${name} (rama principal: master)"
@@ -171,12 +184,14 @@ image:
   digest: ""
 EOF
 done
-pr_url="$(
+# Idempotente (reanudación): si el PR ya existe, se reutiliza
+pr_url="$(gh pr list --repo "${OWNER}/${GITOPS_REPO}" --head "chore/alta-${name}" --state all --json url --jq '.[0].url // empty' 2>/dev/null || true)"
+[[ -z "$pr_url" ]] && pr_url="$(
   cd "$tmp/gitops"
   git checkout -q -b "chore/alta-${name}"
   git add -A
   git commit -q -m "feat(apps): alta del microservicio ${name}"
-  git push -q -u origin "chore/alta-${name}"
+  git push -q -f -u origin "chore/alta-${name}"
   gh pr create --repo "${OWNER}/${GITOPS_REPO}" --head "chore/alta-${name}" \
     --title "feat(apps): alta del microservicio ${name}" --body "$(cat <<EOF
 Alta de **${name}** (${type}) en los clústeres dev, cert y prod.
@@ -200,13 +215,15 @@ for env in dev cert prod; do
   mkdir -p "$tmp/config/${env}"
   cp "$cfg_dir/${env}.yaml" "$tmp/config/${env}/${name}-${env}.yaml"
 done
-config_pr="$(
+config_pr="$(gh pr list --repo "${OWNER}/${CONFIG_REPO}" --head "alta/${name}" --state all --json url --jq '.[0].url // empty' 2>/dev/null || true)"
+[[ -z "$config_pr" ]] && config_pr="$(
   cd "$tmp/config"
   git checkout -q -b "alta/${name}"
   git add -A
   git commit -q -m "feat(config): configuración inicial de ${name}"
-  git push -q -u origin "alta/${name}"
-  gh pr create --repo "${OWNER}/${CONFIG_REPO}" --base pre-develop --head "alta/${name}"     --title "feat(config): configuración inicial de ${name}" --body "$(cat <<EOF
+  git push -q -f -u origin "alta/${name}"
+  gh pr create --repo "${OWNER}/${CONFIG_REPO}" --base pre-develop --head "alta/${name}" \
+    --title "feat(config): configuración inicial de ${name}" --body "$(cat <<EOF
 Configuración inicial de **${name}** (${type}) para los tres ambientes:
 
 | Ambiente | Archivo | Llega con |

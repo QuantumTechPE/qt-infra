@@ -5,6 +5,11 @@
 # Requieren: OWNER, GOVERNANCE_APP_ID y estar en la raíz de qt-infra.
 # -----------------------------------------------------------------------------
 
+# gh con reintentos ante errores transitorios de GitHub (5xx, "unexpected EOF"...):
+# un alta de microservicio o un bootstrap no deben cortarse a mitad por eso.
+# shellcheck source=../../.github/scripts/lib-gh.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../.github/scripts/lib-gh.sh"
+
 info() { printf '\033[36m▶ %s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✔ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m⚠ %s\033[0m\n' "$*" >&2; }
