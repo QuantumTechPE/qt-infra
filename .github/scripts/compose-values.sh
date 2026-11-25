@@ -23,7 +23,14 @@ out="${3:-/dev/stdout}"
 d="${svc_dir%/}/deploy"
 
 [[ " dev cert prod " == *" ${env} "* ]] || { echo "Ambiente inválido: ${env}" >&2; exit 2; }
-for f in "$d/values.yaml" "$d/values-${env}.yaml"; do
+env_file="$d/values-${env}.yaml"
+# Versiones anteriores al renombre qa → cert (p. ej. la que restaura una
+# reversión) traen values-qa.yaml: se usa como el plan de recursos de cert.
+if [[ "$env" == "cert" && ! -f "$env_file" && -f "$d/values-qa.yaml" ]]; then
+  echo "ℹ️ ${d}: versión anterior al renombre qa → cert; se usa values-qa.yaml" >&2
+  env_file="$d/values-qa.yaml"
+fi
+for f in "$d/values.yaml" "$env_file"; do
   [[ -f "$f" ]] || { echo "Falta ${f}" >&2; exit 1; }
 done
 
@@ -33,7 +40,7 @@ trap 'rm -f "$tmp"' EXIT
 # Merge profundo (los mapas se combinan; las listas del ambiente reemplazan a las comunes).
 # Se quitan los comentarios de las fuentes y los mapas quedan en estilo bloque.
 yq eval-all '. as $item ireduce ({}; . * $item) | ... comments="" | (.. | select(tag == "!!map")) style=""' \
-  "$d/values.yaml" "$d/values-${env}.yaml" >"$tmp"
+  "$d/values.yaml" "$env_file" >"$tmp"
 
 # Fuera del snapshot técnico: la configuración la pone qt-config (config.yaml)
 yq -i 'del(.config) | del(.configFiles.files) | del(.secrets.enabled) | del(.requiredConfig)' "$tmp"
