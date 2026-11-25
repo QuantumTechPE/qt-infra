@@ -147,7 +147,7 @@ git switch qt/${code}
 |---|---|
 | \`git push\` a \`qt/${code}\` | Se despliega en **DEV** (Despliegue DEV → Pruebas DEV) |
 | Rechazo en pruebas DEV | Comenta \`/rechazar <motivo>\` aquí → Rechazo DEV |
-| PR \`qt/${code}\` → \`master\` aprobado | **Congelamiento** en QA y se abre el issue de **pase** |
+| PR \`qt/${code}\` → \`master\` aprobado | **Congelamiento** en CERT y se abre el issue de **pase** |
 
 Sin historia no hay despliegue: solo las ramas \`qt/<n>\` de una historia abierta llegan a DEV.
 EOF
@@ -196,7 +196,7 @@ issue_comment() {
   title="$(jq -r '.issue.title' "$EVENT")"
   code="$(code_from_title "$title")"
   [[ -n "$code" ]] || return 0
-  # Los rechazos de QA/producción se comentan en el issue de pase
+  # Los rechazos de CERT/producción se comentan en el issue de pase
   [[ ",$(jq -r '[.issue.labels[].name] | join(",")' "$EVENT")," == *",${PASE_LABEL},"* ]] && return 0
 
   user="$(jq -r '.comment.user.login' "$EVENT")"
@@ -209,7 +209,7 @@ issue_comment() {
   load_project
   current="$(current_status "$node")"
   if ! in_list "$current" "Despliegue DEV" "Pruebas DEV"; then
-    comment "$REPO" "$number" "ℹ️ \`/rechazar\` aquí aplica en **Pruebas DEV** (ahora: ${current:-sin carril}). Para QA o producción comenta en el issue de pase."
+    comment "$REPO" "$number" "ℹ️ \`/rechazar\` aquí aplica en **Pruebas DEV** (ahora: ${current:-sin carril}). Para CERT o producción comenta en el issue de pase."
     return 0
   fi
   reason="$(sed -E 's#^/rechazar[[:space:]]*##' <<<"$body" | head -n1)"

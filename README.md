@@ -1,6 +1,6 @@
 # qt-infra: plataforma CI/CD + GitOps 100 % gratuita
 
-Plataforma corporativa para microservicios: **un repositorio por microservicio**, **tres ambientes (dev · qa · prod) en tres clústeres Kubernetes on-premise (k3s)**, CI/CD en **GitHub Actions** y despliegue **GitOps con Argo CD**. Todo con herramientas gratuitas u open source.
+Plataforma corporativa para microservicios: **un repositorio por microservicio**, **tres ambientes (dev · cert · prod) en tres clústeres Kubernetes on-premise (k3s)**, CI/CD en **GitHub Actions** y despliegue **GitOps con Argo CD**. Todo con herramientas gratuitas u open source.
 
 Este repo es la plataforma: workflows reutilizables, chart común, plantillas de microservicio, aprovisionamiento de clústeres y servicios de soporte (Vault, SonarQube, runners).
 
@@ -12,7 +12,7 @@ Este repo es la plataforma: workflows reutilizables, chart común, plantillas de
 | CI/CD | Jenkins / Azure DevOps | **GitHub Actions** (workflows reutilizables + runners self-hosted efímeros) |
 | Despliegue | Spinnaker / Octopus | **Argo CD** (GitOps) en cada clúster |
 | Kubernetes on-premise | OpenShift / Rancher | **k3s** aprovisionado con **Ansible** |
-| ConfigMaps / Secrets | — | ConfigMap desde `qt-gitops` · Secret desde **Vault** vía **External Secrets** |
+| ConfigMaps / Secrets | — | Configuración por ambiente en el repo **`qt-config`** (dev ← `pre-develop`, cert ← `develop`, prod ← `master`) → ConfigMaps vía `qt-gitops` · Secret desde **Vault** vía **External Secrets** |
 | Calidad | SonarQube Developer | **SonarQube Community** + plugin de ramas/PRs |
 | SAST | Checkmarx | **Semgrep** |
 | SCA / artefactos | JFrog Xray | **Trivy** + **Dependency-Track** |
@@ -20,7 +20,7 @@ Este repo es la plataforma: workflows reutilizables, chart común, plantillas de
 | Registro de artefactos | Artifactory | **GHCR** (imágenes) + **GitHub Releases** (binarios) |
 | Supply chain | Xray + firma propia | SHA-256 en cada etapa, **cosign**, **SLSA**, SBOM y **Kyverno** (solo imágenes firmadas) |
 | Gobierno | Bitbucket DC | Rulesets: `master` intocable, aprobación de un admin y auto-merge |
-| Observabilidad | Datadog / Dynatrace | **Grafana + Prometheus + Loki + Alloy** en cada clúster (dev, qa, prod), con dashboard y alertas de microservicios |
+| Observabilidad | Datadog / Dynatrace | **Grafana + Prometheus + Loki + Alloy** en cada clúster (dev, cert, prod), con dashboard y alertas de microservicios |
 | Alta de microservicios | Backstage / tickets manuales | Workflow **Nuevo microservicio** (backend o frontend) con aprobación de admins |
 
 ## Arquitectura
@@ -41,7 +41,7 @@ flowchart LR
   end
   subgraph K["Clústeres k3s on-premise"]
     DEV["dev<br/>Argo CD"]
-    QA["qa<br/>Argo CD"]
+    CERT["cert<br/>Argo CD"]
     PROD["prod<br/>Argo CD"]
   end
   BOARD -- "historia → rama" --> SVC
@@ -49,12 +49,12 @@ flowchart LR
   SVC -- "build · scan · firma" --> GHCR
   R -- "promoción: digest" --> GITOPS
   R --- V & S
-  GITOPS -- "sync" --> DEV & QA & PROD
-  DEV & QA & PROD -- "External Secrets" --> V
-  GHCR -. "pull (Kyverno verifica firma)" .-> DEV & QA & PROD
+  GITOPS -- "sync" --> DEV & CERT & PROD
+  DEV & CERT & PROD -- "External Secrets" --> V
+  GHCR -. "pull (Kyverno verifica firma)" .-> DEV & CERT & PROD
 ```
 
-**Despliegues:** push a la rama de la historia `qt/<n>` → **dev** (sin historia no hay despliegue). Merge a `master` → **congelamiento** en **qa** (congela, revierte y recongela) con release del cambio y de reversión. **prod** con un pase agendado, aprobado por un admin y ejecutado automáticamente a la hora indicada; luego se ratifica o se revierte. Ver [flujo de trabajo](docs/flujo-de-trabajo.md).
+**Despliegues:** push a la rama de la historia `qt/<n>` → **dev** (sin historia no hay despliegue). Merge a `master` → **congelamiento** en **cert** (congela, revierte y recongela) con release del cambio y de reversión. **prod** con un pase agendado, aprobado por un admin y ejecutado automáticamente a la hora indicada; luego se ratifica o se revierte. Ver [flujo de trabajo](docs/flujo-de-trabajo.md).
 
 ## Estructura
 
@@ -69,12 +69,13 @@ flowchart LR
 │   ├── charts/qt-service/      chart común: Deployment, Service, Ingress, ConfigMap, ExternalSecret, HPA, PDB, NetworkPolicy
 │   ├── charts/cluster-config/  por clúster: ClusterSecretStore (Vault) + política de imágenes firmadas (Kyverno)
 │   ├── charts/observability/   por clúster: admin de Grafana desde Vault, dashboard y alertas de microservicios
-│   └── provisioning/           Ansible: k3s en tus servidores (inventarios dev, qa, prod)
+│   └── provisioning/           Ansible: k3s en tus servidores (inventarios dev, cert, prod)
 ├── templates/
-│   ├── service-quarkus/        backend Java 21 + Quarkus: esqueleto + deploy/ (properties, recursos, HPA, Vault por ambiente)
-│   ├── service-angular/        frontend Angular: esqueleto + deploy/ (config.json, recursos, HPA por ambiente)
+│   ├── service-quarkus/        backend Java 21 + Quarkus: esqueleto + deploy/ técnico + qt-config/ (configuración inicial)
+│   ├── service-angular/        frontend Angular: esqueleto + deploy/ técnico + qt-config/ (config.json inicial)
 │   ├── _common/                workflows, gobierno e issue forms de cada repo nuevo
-│   └── gitops/                 contenido inicial de qt-gitops
+│   ├── gitops/                 contenido inicial de qt-gitops
+│   └── config/                 contenido inicial de qt-config (configuración por ambiente)
 ├── platform/                   Vault · SonarQube · runners · Dependency-Track · toolbox (qt.ps1 / qt.sh)
 ├── scripts/new-service.sh      crea un microservicio completo con un comando
 └── docs/
@@ -85,23 +86,24 @@ flowchart LR
 > **Servidor definitivo:** el levantamiento total (migración desde el servidor de pruebas o instalación desde cero, con los parámetros que cambian) está en **[docs/levantamiento.md](docs/levantamiento.md)**.
 
 1. **[docs/puesta-en-marcha.md](docs/puesta-en-marcha.md)**: organización, plataforma, clústeres y primer microservicio.
-2. **[docs/flujo-de-trabajo.md](docs/flujo-de-trabajo.md)**: el día a día (historia → PR → dev → qa → prod) y cómo cambiar configuración o secretos.
+2. **[docs/flujo-de-trabajo.md](docs/flujo-de-trabajo.md)**: el día a día (historia → PR → dev → cert → prod) y cómo cambiar configuración o secretos.
 3. **[docs/seguridad.md](docs/seguridad.md)**: secretos, supply chain, políticas del clúster y límites conocidos.
 4. **[docs/observabilidad.md](docs/observabilidad.md)**: Grafana, métricas, logs y alertas por ambiente.
 5. **[docs/recursos.md](docs/recursos.md)**: CPU y RAM por ambiente, con la ruta exacta para cambiar cada componente y cada microservicio.
+6. **[docs/configuracion.md](docs/configuracion.md)**: el repo `qt-config` (variables, archivos y secretos por ambiente; ramas pre-develop, develop y master).
 
 ```powershell
 cd platform
 .\qt.ps1 up                                   # Vault (TLS) + SonarQube + runners
 .\qt.ps1 github-app <APP_ID> <CLIENT_ID> app.pem
 .\qt.ps1 ssh-key                              # llave para tus servidores
-.\qt.ps1 k8s-provision dev                    # k3s en los servidores de dev (igual qa y prod)
+.\qt.ps1 k8s-provision dev                    # k3s en los servidores de dev (igual cert y prod)
 ```
 ```bash
-bash platform/scripts/github-bootstrap.sh     # organización + qt-infra + qt-gitops (Git Bash)
+bash platform/scripts/github-bootstrap.sh     # organización + qt-infra + qt-gitops + qt-config (Git Bash)
 ```
 ```powershell
-.\qt.ps1 k8s-bootstrap dev                    # Vault ⇄ clúster + Argo CD + GitOps (igual qa y prod)
+.\qt.ps1 k8s-bootstrap dev                    # Vault ⇄ clúster + Argo CD + GitOps (igual cert y prod)
 ```
 Microservicios: **Actions → Nuevo microservicio** en `qt-infra` (o, en local, `bash scripts/new-service.sh qt-backend backend`).
 

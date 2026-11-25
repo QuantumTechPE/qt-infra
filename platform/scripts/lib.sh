@@ -7,7 +7,7 @@ SECRETS_DIR="${SECRETS_DIR:-/secrets}"
 TLS_DIR="${SECRETS_DIR}/tls"
 export VAULT_CACERT="${VAULT_CACERT:-${TLS_DIR}/ca.crt}"
 VAULT_INIT_FILE="${SECRETS_DIR}/vault-init.json"
-ENVIRONMENTS=(dev qa prod)
+ENVIRONMENTS=(dev cert prod)
 
 info() { printf '\033[36m▶ %s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✔ %s\033[0m\n' "$*"; }
@@ -46,7 +46,7 @@ vault_root_login() {
 }
 
 valid_env() {
-  [[ " ${ENVIRONMENTS[*]} " == *" $1 "* ]] || die "Ambiente inválido: '$1' (dev | qa | prod)"
+  [[ " ${ENVIRONMENTS[*]} " == *" $1 "* ]] || die "Ambiente inválido: '$1' (dev | cert | prod)"
 }
 
 # Dominio del Ingress de un ambiente:

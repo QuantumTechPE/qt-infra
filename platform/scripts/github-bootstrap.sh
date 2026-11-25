@@ -5,8 +5,9 @@
 #   Organización: teams admins/developers · política de Actions (allowlist,
 #                 GITHUB_TOKEN de solo lectura, forks con aprobación) · runners
 #                 self-hosted para repos públicos · tablero (GitHub Project) ·
-#                 variables (VAULT_*, GITOPS_REPO, PROJECT_NUMBER...)
-#   Repos:        qt-infra (este) y qt-gitops (generado), configurados y protegidos
+#                 variables (VAULT_*, GITOPS_REPO, CONFIG_REPO, PROJECT_NUMBER...)
+#   Repos:        qt-infra (este), qt-gitops (generado) y qt-config (configuración
+#                 por ambiente: ramas pre-develop, develop y master), protegidos
 #
 # Requisitos (host, Git Bash): gh (winget install GitHub.cli) autenticado con
 #   gh auth login -s admin:org,project,workflow
@@ -32,6 +33,7 @@ set +a
 OWNER="${GITHUB_OWNER:?}"
 INFRA_REPO="${INFRA_REPO:-qt-infra}"
 GITOPS_REPO="${GITOPS_REPO:-qt-gitops}"
+CONFIG_REPO="${CONFIG_REPO:-qt-config}"
 : "${GOVERNANCE_APP_ID:?Define GOVERNANCE_APP_ID (App ID numérico de la GitHub App) en platform/.env}"
 [[ "$GOVERNANCE_APP_ID" =~ ^[0-9]+$ ]] || die "GOVERNANCE_APP_ID debe ser numérico"
 ADMIN_APPROVALS_REQUIRED="${ADMIN_APPROVALS_REQUIRED:-1}"
@@ -110,8 +112,8 @@ if [[ "$status_options" != "$LANES_CSV" ]]; then
         {name: "Despliegue DEV",          color: BLUE,   description: "Push a qt/<n>: desplegando en DEV"},
         {name: "Pruebas DEV",             color: YELLOW, description: "En DEV, en pruebas (/rechazar si no pasa)"},
         {name: "Rechazo DEV",             color: RED,    description: "Rechazada en DEV: corregir en qt/<n>"},
-        {name: "Congelamiento (doing)",   color: PURPLE, description: "PR mergeado: congela, revierte y recongela en QA"},
-        {name: "Congelamiento (done)",    color: PURPLE, description: "Release del cambio y de reversión listos en QA"},
+        {name: "Congelamiento (doing)",   color: PURPLE, description: "PR mergeado: congela, revierte y recongela en CERT"},
+        {name: "Congelamiento (done)",    color: PURPLE, description: "Release del cambio y de reversión listos en CERT"},
         {name: "Pruebas QA",              color: YELLOW, description: "En QA, en pruebas (/rechazar en el issue de pase)"},
         {name: "Rechazo QA",              color: RED,    description: "Rechazada en QA: release descartado"},
         {name: "Gestión de pase",         color: ORANGE, description: "/agendar: fecha y hora + aprobación de admin"},
@@ -144,6 +146,7 @@ set_org_var VAULT_ADDR "https://vault:8200"
 set_org_var VAULT_AUDIENCE "${VAULT_AUDIENCE:-qt-vault}"
 set_org_var VAULT_CA_B64 "$(cat platform/.secrets/tls/ca.b64)"
 set_org_var GITOPS_REPO "$GITOPS_REPO"
+set_org_var CONFIG_REPO "$CONFIG_REPO"
 set_org_var INFRA_REPO "$INFRA_REPO"
 set_org_var GOVERNANCE_APP_ID "$GOVERNANCE_APP_ID"
 set_org_var PROJECT_NUMBER "$PROJECT_NUMBER"
@@ -175,14 +178,14 @@ configure_repo "${OWNER}/${INFRA_REPO}" infra
 
 # ------------------------------------------------------------------ 6. qt-gitops
 if ! gh repo view "${OWNER}/${GITOPS_REPO}" >/dev/null 2>&1; then
-  info "Generando ${GITOPS_REPO} (clusters dev/qa/prod con la CA y URL de Vault)"
+  info "Generando ${GITOPS_REPO} (clusters dev/cert/prod con la CA y URL de Vault)"
   docker compose -f platform/docker-compose.yml run --rm -T toolbox bash /scripts/gitops-render.sh
-  gh repo create "${OWNER}/${GITOPS_REPO}" --public --description "GitOps: estado deseado de los clústeres dev, qa y prod" >/dev/null
+  gh repo create "${OWNER}/${GITOPS_REPO}" --public --description "GitOps: estado deseado de los clústeres dev, cert y prod" >/dev/null
   (
     cd "platform/.generated/${GITOPS_REPO}"
     git init -b master >/dev/null
     git add -A
-    git commit -m "chore: estado inicial de los clústeres dev, qa y prod" >/dev/null
+    git commit -m "chore: estado inicial de los clústeres dev, cert y prod" >/dev/null
     git remote add origin "https://github.com/${OWNER}/${GITOPS_REPO}.git"
     git push -u origin master
   )
@@ -190,16 +193,40 @@ if ! gh repo view "${OWNER}/${GITOPS_REPO}" >/dev/null 2>&1; then
 fi
 configure_repo "${OWNER}/${GITOPS_REPO}" gitops
 
+# ------------------------------------------------------------------ 7. qt-config
+# Configuración por ambiente de TODOS los microservicios. Cada ambiente lee su
+# carpeta desde su rama: dev ← pre-develop, cert ← develop, prod ← master.
+if ! gh repo view "${OWNER}/${CONFIG_REPO}" >/dev/null 2>&1; then
+  info "Generando ${CONFIG_REPO} (ramas pre-develop → dev, develop → cert, master → prod)"
+  gh repo create "${OWNER}/${CONFIG_REPO}" --public     --description "Configuración por ambiente de los microservicios (dev ← pre-develop, cert ← develop, prod ← master)" >/dev/null
+  out="platform/.generated/${CONFIG_REPO}"
+  rm -rf "$out" && mkdir -p "$out"
+  cp -r templates/config/. "$out/"
+  grep -rlE '__(GITHUB_OWNER|INFRA_REPO)__' "$out" | xargs -r sed -i     -e "s|__GITHUB_OWNER__|${OWNER}|g" -e "s|__INFRA_REPO__|${INFRA_REPO}|g"
+  (
+    cd "$out"
+    git init -b master >/dev/null
+    git add -A
+    git commit -m "chore: repo de configuración por ambiente" >/dev/null
+    git remote add origin "https://github.com/${OWNER}/${CONFIG_REPO}.git"
+    git push -u origin master
+    git push origin master:develop master:pre-develop
+  )
+  ok "Repo ${CONFIG_REPO} creado (master, develop y pre-develop)"
+fi
+configure_repo "${OWNER}/${CONFIG_REPO}" config
+
 cat <<EOF
 
 $(ok "Organización configurada")
   Tablero:  https://github.com/orgs/${OWNER}/projects/${PROJECT_NUMBER}
   Infra:    https://github.com/${OWNER}/${INFRA_REPO}
   GitOps:   https://github.com/${OWNER}/${GITOPS_REPO}
+  Config:   https://github.com/${OWNER}/${CONFIG_REPO}
 
 Siguientes pasos:
   1. Clústeres:     .\\qt.ps1 k8s-provision dev (servidores) o .\\qt.ps1 k8s-local dev (esta PC);
-                    luego .\\qt.ps1 k8s-bootstrap dev   (igual para qa y prod)
+                    luego .\\qt.ps1 k8s-bootstrap dev   (igual para cert y prod)
   2. Microservicio: issue "Nuevo microservicio" en qt-infra + etiqueta aprobado
                     (o local: bash scripts/new-service.sh qt-backend backend)
   3. Manual (la API no lo expone): Tablero → Workflows → activa "Item closed" y "Pull request merged" (→ Done)

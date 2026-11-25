@@ -111,7 +111,7 @@ case "$mode" in
     version="${tag%-rc.*}"
     reversion_tag="${tag}-reversion"
 
-    # El release congelado es INMUTABLE: si ya existe (CICD QA lanzado otra vez
+    # El release congelado es INMUTABLE: si ya existe (CICD CERT lanzado otra vez
     # sobre el mismo commit), se usa SU imagen, no la recién construida, y no se
     # vuelven a publicar sus artefactos.
     reused=false
@@ -140,7 +140,7 @@ case "$mode" in
       '{tag: $tag, image: $image, digest: $digest, commit: $commit}' >"$work/despliegue.json"
     if ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
       {
-        echo "**Release del cambio** congelado para QA. Pasa a producción con su issue de pase."
+        echo "**Release del cambio** congelado para CERT. Pasa a producción con su issue de pase."
         echo
         echo "- Imagen: \`${IMAGE}@${DIGEST}\`"
         echo "- Reversión: \`${reversion_tag}\` (restaura **${rev_label}**)"

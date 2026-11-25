@@ -1,0 +1,120 @@
+# =============================================================================
+# CD del repo de configuración (lo llaman cicd-dev.yml, cicd-cert.yml y
+# cicd-prod.yml de qt-config). Cada ambiente lee SU carpeta desde SU rama:
+#
+#   CICD DEV   push a pre-develop → dev/*-dev.yaml   → clúster dev
+#   CICD CERT  push a develop     → cert/*-cert.yaml → clúster cert
+#   CICD PROD  push a master      → prod/*-prod.yaml → clúster prod
+#
+#   1. Vault: crea las claves declaradas que falten y tengan generate: true
+#      (nunca pisa un valor); avisa las que debe cargar un admin.
+#   2. GitOps: escribe qt-gitops/apps/<servicio>/<ambiente>/config.yaml.
+#   3. Espera a Argo CD (Synced + Healthy) en cada servicio que cambió; si alguno
+#      falla, revierte el commit GitOps (rollback automático).
+# =============================================================================
+name: config-cd
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: dev | cert | prod
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Configuración → ${{ inputs.environment }}
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+    concurrency:
+      group: config-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      GITOPS_REPO: ${{ github.repository_owner }}/${{ vars.GITOPS_REPO || 'qt-gitops' }}
+      CONFIG_REPO: ${{ github.repository }}
+      CONFIG_DIR: .config
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Configuración (este commit de qt-config)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .config
+          persist-credentials: false
+
+      - name: Token de la GitHub App (solo repo GitOps)
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+          vault-role: gha-config-${{ inputs.environment }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.GITOPS_REPO || 'qt-gitops' }}
+
+      - name: Vault (token del ambiente) y Argo CD
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          url: ${{ vars.VAULT_ADDR }}
+          caCertificate: ${{ vars.VAULT_CA_B64 }}
+          method: jwt
+          path: jwt-github
+          role: gha-config-${{ inputs.environment }}
+          jwtGithubAudience: ${{ vars.VAULT_AUDIENCE }}
+          exportToken: true
+          secrets: |
+            secret/data/platform/argocd/${{ inputs.environment }} url | ARGOCD_URL ;
+            secret/data/platform/argocd/${{ inputs.environment }} token | ARGOCD_TOKEN
+
+      # Primero los secretos: así, cuando el pod se reinicia por la nueva
+      # configuración, las claves nuevas ya existen en Vault.
+      - name: Secretos declarados → Vault
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_CA_B64: ${{ vars.VAULT_CA_B64 }}
+        run: |
+          base64 -d <<<"$VAULT_CA_B64" > "$RUNNER_TEMP/vault-ca.crt"
+          VAULT_CACERT="$RUNNER_TEMP/vault-ca.crt" bash .qt-infra/.github/scripts/config-vault.sh
+
+      - name: Configuración → GitOps
+        id: apply
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: bash .qt-infra/.github/scripts/config-apply.sh apply
+
+      - name: Esperar a Argo CD (Synced + Healthy)
+        id: wait
+        if: steps.apply.outputs.revision != ''
+        env:
+          REVISION: ${{ steps.apply.outputs.revision }}
+          SERVICES: ${{ steps.apply.outputs.services }}
+        run: |
+          for svc in $SERVICES; do
+            APP="${svc}-${ENVIRONMENT}" bash .qt-infra/.github/scripts/argocd-wait.sh
+          done
+
+      - name: Rollback de configuración
+        if: failure() && steps.wait.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REVISION: ${{ steps.apply.outputs.revision }}
+        run: bash .qt-infra/.github/scripts/config-apply.sh revert "$REVISION"

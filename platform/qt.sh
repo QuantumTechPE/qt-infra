@@ -7,11 +7,11 @@
 #   github-app <APP_ID> <CLIENT_ID> <ruta.pem>
 #                                   Guarda la GitHub App en Vault y reinicia los runners
 #   ssh-key                         Llave SSH para administrar los nodos k3s
-#   k8s-provision <dev|qa|prod>     Instala/actualiza k3s en los servidores (Ansible)
-#   k8s-local <dev|qa|prod>         Alternativa sin servidores: clúster k3s local (k3d)
-#   k8s-local-stop <dev|qa|prod>    Apaga un clúster local (libera su RAM)
-#   k8s-local-start <dev|qa|prod>   Enciende un clúster local apagado (robusto tras reiniciar Docker)
-#   k8s-bootstrap <dev|qa|prod>     Vault ⇄ clúster + Argo CD + GitOps
+#   k8s-provision <dev|cert|prod>     Instala/actualiza k3s en los servidores (Ansible)
+#   k8s-local <dev|cert|prod>         Alternativa sin servidores: clúster k3s local (k3d)
+#   k8s-local-stop <dev|cert|prod>    Apaga un clúster local (libera su RAM)
+#   k8s-local-start <dev|cert|prod>   Enciende un clúster local apagado (robusto tras reiniciar Docker)
+#   k8s-bootstrap <dev|cert|prod>     Vault ⇄ clúster + Argo CD + GitOps
 #   gitops-render                   Regenera el contenido inicial de qt-gitops (.generated/)
 #   secret-list <servicio> <env>    Claves (sin valores) de secret/apps/<servicio>/<env>
 #   secret-set <servicio> <env> <CLAVE>      Carga un secreto (pide el valor sin mostrarlo)
@@ -93,7 +93,7 @@ EOF
   secret-list) ensure_env; tool service-secret.sh list "$@" ;;
   secret-generate) ensure_env; tool service-secret.sh generate "$@" ;;
   secret-set)
-    [[ $# -eq 3 ]] || die "uso: qt.sh secret-set <servicio> <dev|qa|prod> <CLAVE>"
+    [[ $# -eq 3 ]] || die "uso: qt.sh secret-set <servicio> <dev|cert|prod> <CLAVE>"
     ensure_env
     read -rs -p "Valor de $3 para $1 ($2): " value
     echo
@@ -109,9 +109,9 @@ EOF
     # Ingress (abierto en la LAN) y API de Kubernetes (solo 127.0.0.1)
     case "$env" in
       dev) port=8081 api=6551 ;;
-      qa) port=8082 api=6552 ;;
+      cert) port=8082 api=6552 ;;
       prod) port=8083 api=6553 ;;
-      *) die "uso: qt.sh k8s-local <dev|qa|prod>" ;;
+      *) die "uso: qt.sh k8s-local <dev|cert|prod>" ;;
     esac
     command -v k3d >/dev/null || die "Instala k3d v5.9.0 (https://k3d.io) y vuelve a ejecutar"
     name="qt-${env}"
@@ -149,7 +149,7 @@ EOF
     ok "Clúster ${name} listo (kubeconfig: platform/.secrets/kubeconfig-${env}). Siguiente: ./qt.sh k8s-bootstrap ${env}"
     ;;
   k8s-local-stop)
-    [[ "${1:-}" =~ ^(dev|qa|prod)$ ]] || die "uso: qt.sh k8s-local-stop <dev|qa|prod>"
+    [[ "${1:-}" =~ ^(dev|cert|prod)$ ]] || die "uso: qt.sh k8s-local-stop <dev|cert|prod>"
     k3d cluster stop "qt-$1"
     ok "Clúster qt-$1 apagado. Para encenderlo: ./qt.sh k8s-local-start $1"
     ;;
@@ -159,7 +159,7 @@ EOF
     # "not authorized") y `k3d cluster start` se cuelga esperando al agente con el
     # serverlb apagado. Se enciende nodo por nodo, se borra ese caché del agente
     # y se reinician agente y serverlb.
-    [[ "${1:-}" =~ ^(dev|qa|prod)$ ]] || die "uso: qt.sh k8s-local-start <dev|qa|prod>"
+    [[ "${1:-}" =~ ^(dev|cert|prod)$ ]] || die "uso: qt.sh k8s-local-start <dev|cert|prod>"
     name="qt-$1"
     # Recién encendido, Kubernetes aún muestra el "Ready" de antes de apagar: se
     # espera a que server y agente vuelvan a anunciarse en SUS logs (sin relojes).

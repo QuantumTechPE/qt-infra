@@ -31,7 +31,7 @@ for env in "${ENVIRONMENTS[@]}"; do
   # Observabilidad: retención y almacenamiento crecen con el ambiente
   case "$env" in
     dev) prom_ret=3d; prom_sto=10Gi; loki_ret=72h; loki_sto=10Gi ;;
-    qa) prom_ret=7d; prom_sto=20Gi; loki_ret=168h; loki_sto=20Gi ;;
+    cert) prom_ret=7d; prom_sto=20Gi; loki_ret=168h; loki_sto=20Gi ;;
     prod) prom_ret=15d; prom_sto=50Gi; loki_ret=360h; loki_sto=50Gi ;;
   esac
 
@@ -53,7 +53,7 @@ for env in "${ENVIRONMENTS[@]}"; do
     [ESO]="$(res 10m 64Mi 192Mi)"
   )
   case "$env" in
-    qa)
+    cert)
       R[PROMETHEUS]="$(res 200m 1536Mi 3Gi)"
       R[LOKI]="$(res 100m 384Mi 1Gi)"
       ;;

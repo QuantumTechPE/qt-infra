@@ -29,7 +29,7 @@ LANES=(
 # shellcheck disable=SC2034
 # Carriles desde los que un push a qt/<n> puede (re)desplegar en DEV: antes del
 # congelamiento o después de un rechazo/reversión. Una historia en el flujo de
-# QA/pase no se mueve por un push.
+# CERT/pase no se mueve por un push.
 DEV_LANES=("" "Backlog" "Ready" "In Progress" "Despliegue DEV" "Pruebas DEV" "Rechazo DEV"
   "Rechazo QA" "Rechazo producción" "Reversión")
 

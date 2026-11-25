@@ -8,7 +8,7 @@ src/app/
   features/         una carpeta por funcionalidad (home/ de ejemplo)
   app.*             shell: barra superior + router
 public/runtime/config.json    configuración local (en el clúster la reemplaza el ConfigMap)
-deploy/                       cómo corre en dev, qa y prod (ver deploy/README.md)
+deploy/                       cómo corre en dev, cert y prod (ver deploy/README.md)
 ```
 
 ```bash
@@ -21,10 +21,12 @@ npm run build          # dist/app/browser
 
 ## Ambientes
 
-| Ambiente | Cuándo | Recursos / HPA | Configuración de runtime |
+| Ambiente | Cuándo | Recursos / HPA | `config.json` (repo qt-config) |
 |---|---|---|---|
-| dev | cada push a la rama de la historia `qt/<n>` | `deploy/values-dev.yaml` | `deploy/config/dev/config.json` |
-| qa | congelamiento: cada merge a `master` (`vX.Y.Z-rc.N`, con prueba de reversión) | `deploy/values-qa.yaml` | `deploy/config/qa/config.json` |
-| prod | pase agendado y aprobado por un admin (`vX.Y.Z` al ratificar) | `deploy/values-prod.yaml` | `deploy/config/prod/config.json` |
+| dev | cada push a la rama de la historia `qt/<n>` | `deploy/values-dev.yaml` | `pre-develop`: `dev/qt-template-angular-dev.yaml` |
+| cert | congelamiento: cada merge a `master` (`vX.Y.Z-rc.N`, con prueba de reversión) | `deploy/values-cert.yaml` | `develop`: `cert/qt-template-angular-cert.yaml` |
+| prod | pase agendado y aprobado por un admin (`vX.Y.Z` al ratificar) | `deploy/values-prod.yaml` | `master`: `prod/qt-template-angular-prod.yaml` |
 
-En el clúster lo sirve **Nginx sin root** con CSP estricta. La versión publicada la define el **congelamiento** (`vX.Y.Z-rc.N` en QA, `vX.Y.Z` al ratificar en producción).
+Un cambio solo de configuración es un PR en qt-config: no necesita una versión nueva.
+
+En el clúster lo sirve **Nginx sin root** con CSP estricta. La versión publicada la define el **congelamiento** (`vX.Y.Z-rc.N` en CERT, `vX.Y.Z` al ratificar en producción).

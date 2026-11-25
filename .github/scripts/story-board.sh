@@ -11,7 +11,7 @@
 # quedó Healthy. Un push nuevo, o "/rechazar" en pruebas DEV, lo vuelve a exigir.
 #
 # Los carriles solo se mueven si la historia está en la fase DEV (DEV_LANES): un
-# push a una rama cuya historia ya está en QA o en el pase no la saca de ahí.
+# push a una rama cuya historia ya está en CERT o en el pase no la saca de ahí.
 #
 # Entradas: GH_TOKEN (GitHub App), REPO, ISSUE, PROJECT_OWNER, PROJECT_NUMBER,
 #           GITHUB_SHA, GITHUB_RUN_ID

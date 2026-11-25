@@ -8,11 +8,11 @@
 #      External Secrets, Kyverno, config de plataforma y los microservicios).
 #   4. Token de la cuenta "ci" → Vault (el pipeline espera Synced + Healthy).
 #
-#   k8s-bootstrap.sh <dev|qa|prod>     (requiere platform/.secrets/kubeconfig-<ambiente>)
+#   k8s-bootstrap.sh <dev|cert|prod>     (requiere platform/.secrets/kubeconfig-<ambiente>)
 # -----------------------------------------------------------------------------
 source /scripts/lib.sh
 
-env="${1:?uso: k8s-bootstrap.sh <dev|qa|prod>}"
+env="${1:?uso: k8s-bootstrap.sh <dev|cert|prod>}"
 valid_env "$env"
 : "${GITHUB_OWNER:?}"
 INFRA_REPO="${INFRA_REPO:-qt-infra}"

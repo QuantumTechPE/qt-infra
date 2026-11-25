@@ -3,9 +3,9 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 /**
- * Configuración de RUNTIME del ambiente. En el clúster viene de
- * deploy/config/<ambiente>/config.json (ConfigMap montado en /runtime/config.json),
- * así la MISMA imagen sirve para dev, qa y prod. En local: public/runtime/config.json.
+ * Configuración de RUNTIME del ambiente. En el clúster viene del repo qt-config
+ * (files: config.json de <ambiente>/<servicio>-<ambiente>.yaml, montado en /runtime/),
+ * así la MISMA imagen sirve para dev, cert y prod. En local: public/runtime/config.json.
  * Nunca pongas secretos aquí: el navegador lo descarga.
  */
 export interface RuntimeConfig {

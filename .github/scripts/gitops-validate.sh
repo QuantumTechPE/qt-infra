@@ -9,7 +9,7 @@
 set -euo pipefail
 
 CHART_DIR="${CHART_DIR:?ruta a qt-infra/k8s/charts}"
-ENVIRONMENTS=(dev qa prod)
+ENVIRONMENTS=(dev cert prod)
 schemas=(
   -schema-location default
   -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
@@ -45,6 +45,8 @@ render_service() {
   local svc="$1" env="$2" domain="$3" file="apps/$1/$2/values.yaml" extra=()
   [[ -z "$(yq '.image.digest // ""' "$file")" ]] && extra+=(--set "image.digest=${fake_digest}")
   [[ -z "$(yq '.image.repository // ""' "$file")" ]] && extra+=(--set "image.repository=registry.invalid/${svc}")
+  # Configuración del ambiente (la escribe el CICD de qt-config), igual que Argo CD
+  [[ -f "apps/$1/$2/config.yaml" ]] && extra+=(-f "apps/$1/$2/config.yaml")
   helm template "$svc" "$CHART_DIR/qt-service" -f "$file" \
     --set "environment=${env}" --set "global.ingressDomain=${domain}" "${extra[@]}" | validate
 }

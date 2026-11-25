@@ -1,12 +1,15 @@
 # deploy/: cómo corre qt-template-angular en cada ambiente
 
-| Archivo | Qué define | Llega al pod como |
+Aquí va **solo lo técnico**. La configuración de cada ambiente vive en el repo **qt-config**.
+
+| Dónde | Qué define | Llega al pod como |
 |---|---|---|
-| `values.yaml` | Común: puerto, probes, ruta pública | Deployment, Service, Ingress |
-| `values-dev.yaml` · `values-qa.yaml` · `values-prod.yaml` | **Plan de recursos**, réplicas, **HPA**, PDB | Deployment, HPA, PDB |
-| `config/<ambiente>/config.json` | Configuración de runtime de la SPA (ambiente, URL de la API, flags) | ConfigMap servido en `/runtime/config.json` |
-| `vault/secrets.yaml` | Una SPA no tiene secretos (`keys: []`) | — |
+| `deploy/values.yaml` | Común: puerto, probes, ruta pública y `requiredConfig` | Deployment, Service, Ingress |
+| `deploy/values-dev.yaml` · `values-cert.yaml` · `values-prod.yaml` | **Plan de recursos**, réplicas, **HPA**, PDB | Deployment, HPA, PDB |
+| **qt-config** `<ambiente>/qt-template-angular-<ambiente>.yaml` → `files: config.json` | Configuración de runtime de la SPA (ambiente, URL de la API, flags) | ConfigMap servido en `/runtime/config.json` |
 
-La app lee `/runtime/config.json` al iniciar (`RuntimeConfigService`), así **la misma imagen** sirve para dev, qa y prod.
+Cada ambiente lee qt-config desde su rama: dev ← `pre-develop`, cert ← `develop`, prod ← `master`. Una SPA no tiene secretos: todo lo que llega al navegador es público.
 
-En cada PR el CI valida los 3 ambientes. Al promover, el pipeline compone estos archivos en `qt-gitops/apps/qt-template-angular/<ambiente>/values.yaml`.
+La app lee `/runtime/config.json` al iniciar (`RuntimeConfigService`), así **la misma imagen** sirve para dev, cert y prod.
+
+En cada PR el CI valida los 3 ambientes con su configuración de qt-config. Al desplegar (DEV, congelamiento y pase), el pipeline verifica `requiredConfig` y escribe en `qt-gitops/apps/qt-template-angular/<ambiente>/` el snapshot técnico (`values.yaml`) y la configuración vigente (`config.yaml`). Un cambio solo de configuración es un PR en qt-config: no necesita una versión nueva.

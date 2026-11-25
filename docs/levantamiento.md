@@ -8,8 +8,9 @@ Guía para llevar la plataforma del servidor de pruebas al servidor definitivo, 
 |---|---|---|
 | GitHub: repos, tablero, GitHub App, rulesets, variables de organización | **No** | Queda igual. Los micros siguen llamando a `qt-infra@master` |
 | Imágenes (GHCR) y releases | **No** | Viven en GitHub |
+| Configuración por ambiente (`qt-config`) | **No** | Vive en GitHub. Sus CICD corren en los runners nuevos apenas estén en línea |
 | **Plataforma**: Vault, SonarQube, runners, toolbox | **Sí** | Al servidor de plataforma (Linux con Docker) |
-| **Clústeres** dev, qa y prod | **Sí** | De k3d (pruebas) a k3s en servidores reales |
+| **Clústeres** dev, cert y prod | **Sí** | De k3d (pruebas) a k3s en servidores reales |
 | Despliegues de los micros | Se recrean solos | Argo CD los toma de `qt-gitops` |
 
 Hay dos caminos:
@@ -22,10 +23,10 @@ Hay dos caminos:
 | Parámetro | Archivo | Valor en el servidor definitivo |
 |---|---|---|
 | `PLATFORM_HOST` | `platform/.env` | IP o **DNS** del servidor de plataforma. Va en el certificado de Vault y es la URL de Vault que usan los clústeres. Con un nombre DNS (p. ej. `vault.quantumtech.local`), una futura mudanza solo cambia el DNS |
-| `INGRESS_DOMAIN_DEV/QA/PROD` | `platform/.env` | **Vacíos** (se usa `<IP del primer control-plane>.nip.io`) o tu dominio |
-| `INGRESS_PORT_DEV/QA/PROD` | `platform/.env` | **Vacíos** (puerto 80). Solo se usaban con los clústeres locales k3d |
+| `INGRESS_DOMAIN_DEV/CERT/PROD` | `platform/.env` | **Vacíos** (se usa `<IP del primer control-plane>.nip.io`) o tu dominio |
+| `INGRESS_PORT_DEV/CERT/PROD` | `platform/.env` | **Vacíos** (puerto 80). Solo se usaban con los clústeres locales k3d |
 | `RUNNER_REPLICAS` | `platform/.env` | Runners en paralelo según la capacidad del servidor (2 a 4) |
-| IPs de los nodos | `k8s/provisioning/inventories/{dev,qa,prod}/hosts.yml` | Tus servidores k3s |
+| IPs de los nodos | `k8s/provisioning/inventories/{dev,cert,prod}/hosts.yml` | Tus servidores k3s |
 | `ingress_domain` (opcional) | Los mismos inventarios | Tu dominio, si no usas nip.io |
 | `PASE_TZ` (opcional) | Variable de la organización en GitHub | Zona horaria de los pases (por defecto `America/Lima`) |
 
@@ -36,7 +37,7 @@ No cambian: `GITHUB_OWNER`, `GITHUB_APP_LOGIN`, `GOVERNANCE_APP_ID`, `ADMIN_APPR
 | Máquina | Requisitos |
 |---|---|
 | **Servidor de plataforma** | Linux (Ubuntu 22.04/24.04 o similar), Docker Engine con el plugin compose, git y curl. Recomendado: 4 vCPU, 8 GB de RAM, 60 GB de disco. SonarQube usa unos 3 GB de RAM |
-| **Servidores k3s** (por ambiente) | Linux con systemd y un usuario con `sudo` sin contraseña. Mínimo 1 nodo por ambiente; prod, recomendado 3 control-plane. Disco para métricas y logs: dev 20 GB, qa 40 GB y prod 100 GB |
+| **Servidores k3s** (por ambiente) | Linux con systemd y un usuario con `sudo` sin contraseña. Mínimo 1 nodo por ambiente; prod, recomendado 3 control-plane. Disco para métricas y logs: dev 20 GB, cert 40 GB y prod 100 GB |
 
 **Dimensionamiento de cada clúster.** Medido en el servidor de pruebas, solo la base de la plataforma, sin microservicios:
 
@@ -53,7 +54,7 @@ A esa base se suman los microservicios con su plan de recursos (`deploy/values-<
 | Ambiente | Nodos sugeridos |
 |---|---|
 | dev | 1 nodo · 2 vCPU · 8 GB |
-| qa | 1 nodo · 4 vCPU · 8 GB |
+| cert | 1 nodo · 4 vCPU · 8 GB |
 | prod | 3 nodos · 4 vCPU · 8 GB (alta disponibilidad) |
 
 **Red:**
@@ -113,10 +114,10 @@ Edita `platform/.env` con los [parámetros que cambian](#parámetros-que-cambian
 ```ini
 PLATFORM_HOST=vault.quantumtech.local     # IP o DNS de ESTE servidor
 INGRESS_DOMAIN_DEV=
-INGRESS_DOMAIN_QA=
+INGRESS_DOMAIN_CERT=
 INGRESS_DOMAIN_PROD=
 INGRESS_PORT_DEV=
-INGRESS_PORT_QA=
+INGRESS_PORT_CERT=
 INGRESS_PORT_PROD=
 RUNNER_REPLICAS=2
 ```
@@ -144,7 +145,7 @@ En GitHub: *Organization settings → Actions → Runners* muestra los runners n
 
 ## 3. Clústeres k3s
 
-1. Edita los inventarios con las IPs de tus servidores: `k8s/provisioning/inventories/{dev,qa,prod}/hosts.yml`.
+1. Edita los inventarios con las IPs de tus servidores: `k8s/provisioning/inventories/{dev,cert,prod}/hosts.yml`.
 
    ```yaml
    all:
@@ -173,7 +174,7 @@ En GitHub: *Organization settings → Actions → Runners* muestra los runners n
 
    ```bash
    ./qt.sh k8s-provision dev && ./qt.sh k8s-bootstrap dev
-   ./qt.sh k8s-provision qa  && ./qt.sh k8s-bootstrap qa
+   ./qt.sh k8s-provision cert  && ./qt.sh k8s-bootstrap cert
    ./qt.sh k8s-provision prod && ./qt.sh k8s-bootstrap prod
    ```
 
@@ -211,7 +212,7 @@ cd ~/qt-infra && bash platform/scripts/github-bootstrap.sh     # idempotente
 
 ```bash
 cd ~/qt-infra/platform
-for e in dev qa prod; do
+for e in dev cert prod; do
   docker compose run --rm -T toolbox bash -c \
     "KUBECONFIG=/secrets/kubeconfig-$e kubectl -n argocd get applications"
 done
@@ -242,8 +243,8 @@ Solo para la PC de pruebas (k3d):
 
 | Necesidad | Comando o ajuste |
 |---|---|
-| Liberar RAM apagando un clúster | `.\qt.ps1 k8s-local-stop <dev\|qa\|prod>` |
-| Volver a encenderlo, incluso tras reiniciar Docker | `.\qt.ps1 k8s-local-start <dev\|qa\|prod>`: enciende nodo por nodo, limpia la IP vieja que guarda el agente ("not authorized") y espera a que se registre. No uses `k3d cluster start`: se cuelga en ese caso |
+| Liberar RAM apagando un clúster | `.\qt.ps1 k8s-local-stop <dev\|cert\|prod>` |
+| Volver a encenderlo, incluso tras reiniciar Docker | `.\qt.ps1 k8s-local-start <dev\|cert\|prod>`: enciende nodo por nodo, limpia la IP vieja que guarda el agente ("not authorized") y espera a que se registre. No uses `k3d cluster start`: se cuelga en ese caso |
 | Más RAM para Docker Desktop | Por defecto WSL usa el 50 % de la RAM (~16 GB en una PC de 32 GB): no alcanza para los 3 clústeres + SonarQube. Crea `%UserProfile%\.wslconfig` con `[wsl2]` y `memory=24GB`, y luego `wsl --shutdown` (reinicia Docker; después usa `k8s-local-start`) |
 
 ## 7. Apagar el servidor de pruebas
@@ -253,7 +254,7 @@ Cuando todo esté verificado, en la PC de pruebas:
 ```powershell
 cd E:\QT\Infra\platform
 .\qt.ps1 down                                        # si no se hizo en el paso 1
-.\.bin\k3d.exe cluster delete qt-dev qt-qa qt-prod   # clústeres de prueba
+.\.bin\k3d.exe cluster delete qt-dev qt-cert qt-prod   # clústeres de prueba
 ```
 
 Así no quedan runners ni Argo CD duplicados. `.\qt.ps1 destroy` borra además los datos locales de la PC: es **irreversible**, úsalo solo cuando el servidor definitivo esté operando. Borra también `E:\QT\qt-backup` y la copia en `~/qt-backup` del servidor.
@@ -288,9 +289,9 @@ Si no hay respaldo, o se quiere empezar limpio:
 5. **Secretos de cada microservicio** por ambiente:
 
    ```bash
-   ./qt.sh secret-list     <servicio> <dev|qa|prod>
-   ./qt.sh secret-set      <servicio> <dev|qa|prod> <CLAVE>    # pide el valor sin mostrarlo
-   ./qt.sh secret-generate <servicio> <dev|qa|prod> <CLAVE>    # valor aleatorio
+   ./qt.sh secret-list     <servicio> <dev|cert|prod>
+   ./qt.sh secret-set      <servicio> <dev|cert|prod> <CLAVE>    # pide el valor sin mostrarlo
+   ./qt.sh secret-generate <servicio> <dev|cert|prod> <CLAVE>    # valor aleatorio
    ```
 
 6. **SonarQube** (si no se restauró su volumen): regenera el token de análisis para el CI:

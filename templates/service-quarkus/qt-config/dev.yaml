@@ -1,0 +1,35 @@
+# =============================================================================
+# qt-template-quarkus · DEV · configuración del ambiente
+# Vive en el repo qt-config: dev/qt-template-quarkus-dev.yaml (rama pre-develop).
+# La crea el alta del microservicio; después se cambia con un PR en qt-config.
+#
+#   env      → ConfigMap qt-template-quarkus-config  → variables de entorno
+#   files    → ConfigMap qt-template-quarkus-files   → /deployments/config/
+#   secrets  → SOLO nombres; valores en Vault secret/apps/qt-template-quarkus/dev
+# =============================================================================
+
+env:
+  # Heap de la JVM = 75 % del límite de memoria del pod
+  JAVA_MAX_MEM_RATIO: "75"
+
+files:
+  # Sobrescribe src/main/resources/application.properties en el clúster dev.
+  # Solo propiedades de RUNTIME (las de build, como quarkus.http.root-path, no aplican).
+  application.properties: |
+    quarkus.log.level=INFO
+    quarkus.log.category."com.qt".level=DEBUG
+
+    # Ejemplos (descomenta y ajusta):
+    # quarkus.datasource.jdbc.url=jdbc:postgresql://postgres-dev:5432/qt
+    # quarkus.rest-client.otro-servicio.url=http://otro-servicio.otro-servicio.svc
+    # quarkus.http.cors.origins=https://qt.dev.miempresa.local
+
+secrets:
+  # generate: true  → la plataforma crea un valor aleatorio DISTINTO por ambiente
+  # generate: false → lo carga un admin: .\qt.ps1 secret-set qt-template-quarkus <ambiente> <CLAVE>
+  - name: APP_EXAMPLE_SECRET
+    description: Ejemplo. Reemplázalo por los secretos reales del servicio.
+    generate: true
+  # - name: DB_PASSWORD
+  #   description: Contraseña de la base de datos del ambiente
+  #   generate: false

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # Aprovisiona (o actualiza) el clúster k3s de un ambiente con Ansible.
-#   k8s-provision.sh <dev|qa|prod> [args extra de ansible-playbook, p. ej. --check]
+#   k8s-provision.sh <dev|cert|prod> [args extra de ansible-playbook, p. ej. --check]
 # Resultado: platform/.secrets/kubeconfig-<ambiente>
 # -----------------------------------------------------------------------------
 source /scripts/lib.sh
 
-env="${1:?uso: k8s-provision.sh <dev|qa|prod>}"
+env="${1:?uso: k8s-provision.sh <dev|cert|prod>}"
 shift
 valid_env "$env"
 

@@ -1,7 +1,7 @@
 # Interno (CI de qt-infra):
 #   - workflows y scripts: actionlint + shellcheck
 #   - charts: helm lint + render + kubeconform
-#   - aprovisionamiento: ansible --syntax-check (dev, qa, prod)
+#   - aprovisionamiento: ansible --syntax-check (dev, cert, prod)
 #   - plantillas de microservicio: build, tests e imagen (Quarkus y Angular)
 #   - seguridad: Gitleaks, Semgrep, Trivy
 name: infra-checks
@@ -53,7 +53,7 @@ jobs:
           # Sin digest el servicio está dado de alta pero no se despliega: no debe generar recursos.
           out="$(helm template ci k8s/charts/qt-service)"
           [[ -z "$(grep -v '^\s*$' <<<"$out" | grep -v '^---' || true)" ]] || { echo "::error::Sin image.digest no debería renderizar recursos"; exit 1; }
-      - name: deploy/ de las plantillas (dev, qa, prod)
+      - name: deploy/ de las plantillas (dev, cert, prod)
         run: |
           bash .github/scripts/deploy-validate.sh templates/service-quarkus qt-template-quarkus k8s/charts/qt-service
           bash .github/scripts/deploy-validate.sh templates/service-angular qt-template-angular k8s/charts/qt-service
@@ -73,7 +73,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: ansible.cfg
         run: |
-          for env in dev qa prod; do
+          for env in dev cert prod; do
             ansible-playbook --syntax-check -i "inventories/${env}" site.yml
             ansible-inventory -i "inventories/${env}" --graph
           done

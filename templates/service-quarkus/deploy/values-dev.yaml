@@ -18,6 +18,3 @@ autoscaling:
 
 podDisruptionBudget:
   enabled: false
-
-# ---- ConfigMap del ambiente → variables de entorno ----------------------------
-config: {}

@@ -7,7 +7,7 @@ De cero a tres clústeres con microservicios desplegados por GitOps.
 | Qué | Para qué |
 |---|---|
 | **Máquina de plataforma**: tu PC con Docker Desktop o, mejor, un servidor Linux con Docker | Vault, SonarQube, runners self-hosted y toolbox (Ansible, kubectl, Helm). Debe ser alcanzable por los clústeres (puerto 8200) |
-| **Servidores/VMs Linux** con systemd para k3s | 3 clústeres: dev, qa y prod (mínimo 1 nodo cada uno; prod recomendado con 3 control-plane) |
+| **Servidores/VMs Linux** con systemd para k3s | 3 clústeres: dev, cert y prod (mínimo 1 nodo cada uno; prod recomendado con 3 control-plane) |
 | Git + Git Bash y **GitHub CLI** (`winget install GitHub.cli`) | Bootstrap de GitHub y alta de microservicios |
 | Node.js ≥ 24.15 y JDK 21 | Solo para desarrollar en local |
 
@@ -68,7 +68,7 @@ PLATFORM_HOST=192.168.1.50         # IP/DNS de esta máquina vista desde los cl�
 
 Si en Windows el firewall bloquea el puerto 8200, habilítalo para la red de los servidores.
 
-## 3. Clústeres k3s (dev, qa y prod)
+## 3. Clústeres k3s (dev, cert y prod)
 
 ```powershell
 .\qt.ps1 ssh-key      # muestra la llave pública: agrégala en ~/.ssh/authorized_keys de cada nodo
@@ -76,14 +76,14 @@ Si en Windows el firewall bloquea el puerto 8200, habilítalo para la red de los
 
 Edita los inventarios con las IPs de tus servidores:
 - `k8s/provisioning/inventories/dev/hosts.yml`
-- `k8s/provisioning/inventories/qa/hosts.yml`
+- `k8s/provisioning/inventories/cert/hosts.yml`
 - `k8s/provisioning/inventories/prod/hosts.yml`
 
 Cada nodo necesita un usuario con sudo sin contraseña. El dominio del Ingress es por defecto `<IP del primer control-plane>.nip.io` (DNS wildcard gratuito). Si tienes DNS propio, define `ingress_domain`.
 
 ```powershell
 .\qt.ps1 k8s-provision dev
-.\qt.ps1 k8s-provision qa
+.\qt.ps1 k8s-provision cert
 .\qt.ps1 k8s-provision prod
 ```
 
@@ -95,7 +95,7 @@ Mientras no tengas servidores, `k8s-local` crea cada clúster como contenedores 
 
 ```powershell
 .\qt.ps1 k8s-local dev     # Ingress en :8081
-.\qt.ps1 k8s-local qa      # Ingress en :8082
+.\qt.ps1 k8s-local cert      # Ingress en :8082
 .\qt.ps1 k8s-local prod    # Ingress en :8083
 ```
 
@@ -115,7 +115,7 @@ Ten en cuenta:
 - Si cambia la IP de la PC, cambia `PLATFORM_HOST` y los `INGRESS_DOMAIN_*`, y vuelve a ejecutar `qt up` y `gitops-render`.
 - Al migrar a servidores reales, vacía `INGRESS_DOMAIN_*` e `INGRESS_PORT_*` y sigue los pasos de arriba.
 
-## 4. GitHub: organización, qt-infra y qt-gitops
+## 4. GitHub: organización, qt-infra, qt-gitops y qt-config
 
 Desde **Git Bash**, en la raíz del repo:
 
@@ -130,9 +130,10 @@ ADMINS="ana,luis" DEVELOPERS="pedro,maria" bash platform/scripts/github-bootstra
 |---|---|
 | Organización | Teams `admins` y `developers`. Política de Actions: allowlist, `GITHUB_TOKEN` de solo lectura, forks con aprobación y runners habilitados para repos públicos |
 | Tablero | GitHub Project con los 16 carriles del flujo (Backlog → Despliegue DEV → Congelamiento → Gestión de pase → … → Done, ver [flujo-de-trabajo.md](flujo-de-trabajo.md)), más Código, Versión, Pase, Prioridad, Story points y Componente |
-| Variables de org | `VAULT_ADDR`, `VAULT_CA_B64`, `VAULT_AUDIENCE`, `GITOPS_REPO`, `PROJECT_NUMBER`... (**ningún secreto**) |
+| Variables de org | `VAULT_ADDR`, `VAULT_CA_B64`, `VAULT_AUDIENCE`, `GITOPS_REPO`, `CONFIG_REPO`, `PROJECT_NUMBER`... (**ningún secreto**) |
 | `qt-infra` | Push inicial y repo protegido |
-| `qt-gitops` | Se genera con `clusters/dev`, `clusters/qa` y `clusters/prod` (URL y CA de Vault, dominio del Ingress, política de imágenes) y se protege. La GitHub App puede escribir las promociones |
+| `qt-gitops` | Se genera con `clusters/dev`, `clusters/cert` y `clusters/prod` (URL y CA de Vault, dominio del Ingress, política de imágenes) y se protege. La GitHub App puede escribir las promociones |
+| `qt-config` | Configuración por ambiente de los micros. Se crea con las ramas `pre-develop` (dev), `develop` (cert) y `master` (prod), sus CICD y sus environments, y se protege (PR + CI + 1 admin). Ver [configuracion.md](configuracion.md) |
 
 Paso manual (la API no lo expone): **Tablero → Workflows** → activa *Item closed* y *Pull request merged* → Done.
 
@@ -140,7 +141,7 @@ Paso manual (la API no lo expone): **Tablero → Workflows** → activa *Item cl
 
 ```powershell
 .\qt.ps1 k8s-bootstrap dev
-.\qt.ps1 k8s-bootstrap qa
+.\qt.ps1 k8s-bootstrap cert
 .\qt.ps1 k8s-bootstrap prod
 ```
 
@@ -172,11 +173,11 @@ Resultado:
    - secretos declarados para Vault.
    
    Los pipelines ya vienen conectados a `qt-infra`.
-2. Repo protegido: rulesets, environments `dev`/`qa`/`prod` (prod con aprobación de admins), seguridad y labels.
-3. Vault: `secret/apps/<nombre>/{dev,qa,prod}`, con valores aleatorios distintos por ambiente para las claves `generate: true`.
+2. Repo protegido: rulesets, environments `dev`/`cert`/`prod` (prod con aprobación de admins), seguridad y labels.
+3. Vault: `secret/apps/<nombre>/{dev,cert,prod}`, con valores aleatorios distintos por ambiente para las claves `generate: true`.
 4. Un **PR en `qt-gitops`** con `apps/<nombre>/`. Cuando un admin lo aprueba, Argo CD de cada clúster empieza a gestionarlo.
 
-El primer despliegue a DEV ocurre con el primer push a la rama de una historia (`qt/<n>`, workflow **CICD DEV**); el merge a `master` congela el release en QA (**CICD QA**). Ver [flujo-de-trabajo.md](flujo-de-trabajo.md).
+El primer despliegue a DEV ocurre con el primer push a la rama de una historia (`qt/<n>`, workflow **CICD DEV**); el merge a `master` congela el release en CERT (**CICD CERT**). Ver [flujo-de-trabajo.md](flujo-de-trabajo.md).
 
 ## Operación
 

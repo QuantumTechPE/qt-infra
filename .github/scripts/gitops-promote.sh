@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Promoción GitOps: compone el SNAPSHOT del ambiente a partir de deploy/ del
-# servicio (recursos, HPA, ConfigMaps, secretos declarados) + la imagen, y lo
-# escribe en qt-gitops/apps/<servicio>/<ambiente>/values.yaml. Argo CD del
-# clúster de ese ambiente despliega el cambio. La configuración viaja así con la
-# versión: prod recibe exactamente la del release aprobado.
+# Promoción GitOps: compone el SNAPSHOT técnico del ambiente a partir de deploy/
+# del servicio (recursos, HPA, PDB) + la imagen, y lo escribe en
+# qt-gitops/apps/<servicio>/<ambiente>/values.yaml. Con CONFIG_VALUES (la
+# configuración vigente del ambiente en qt-config, ya renderizada) escribe además
+# config.yaml en el MISMO commit: la versión nunca queda sin configuración.
+# Argo CD del clúster de ese ambiente despliega el cambio.
 #
 #   gitops-promote.sh promote        → publica `revision=<sha>` en GITHUB_OUTPUT
 #   gitops-promote.sh revert <sha>   → revierte ese commit (rollback GitOps)
 #
 # Entradas: GH_TOKEN (GitHub App, acotado al repo GitOps), GITOPS_REPO (owner/repo),
 #           SERVICE, ENVIRONMENT, IMAGE, DIGEST, VERSION (opcional),
-#           SERVICE_DIR (checkout del servicio en el commit que se despliega)
+#           SERVICE_DIR (checkout del servicio en el commit que se despliega),
+#           CONFIG_VALUES (opcional: config.yaml renderizado desde qt-config)
 # Requiere: git, yq (v4), compose-values.sh (mismo directorio)
 # -----------------------------------------------------------------------------
 set -euo pipefail
@@ -66,14 +68,18 @@ case "$action" in
     export TAG="${VERSION:-sha-${src:0:7}}"
     export SOURCE="${GITHUB_REPOSITORY:-${SERVICE}}@${src}"
     bash "${scripts_dir}/compose-values.sh" "$SERVICE_DIR" "$ENVIRONMENT" "$file"
+    if [[ -n "${CONFIG_VALUES:-}" ]]; then
+      cp "$CONFIG_VALUES" "apps/${SERVICE}/${ENVIRONMENT}/config.yaml"
+    fi
+    git add -A "apps/${SERVICE}/${ENVIRONMENT}"
 
-    if git diff --quiet; then
+    if git diff --cached --quiet; then
       echo "${ENVIRONMENT} ya ejecuta ${DIGEST}; nada que promover."
       echo "revision=$(git rev-parse HEAD)" >>"$out"
       exit 0
     fi
 
-    git commit --quiet -am "deploy(${SERVICE}): ${ENVIRONMENT} → ${TAG}" \
+    git commit --quiet -m "deploy(${SERVICE}): ${ENVIRONMENT} → ${TAG}" \
       -m "Imagen: ${IMAGE:-(retiro)}${DIGEST:+@${DIGEST}}" \
       -m "Pipeline: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-local}/actions/runs/${GITHUB_RUN_ID:-0}"
     push_with_retry

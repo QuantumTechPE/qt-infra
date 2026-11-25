@@ -1,10 +1,13 @@
 # =============================================================================
-# qt-template-quarkus · valores COMUNES a dev, qa y prod
+# qt-template-quarkus · valores COMUNES a dev, cert y prod
 # (chart qt-infra/k8s/charts/qt-service; referencia completa en su values.yaml)
 #
-# Lo específico de cada ambiente va en values-<ambiente>.yaml, config/<ambiente>/
-# y vault/secrets.yaml. Al promover, el pipeline compone todo en
-# qt-gitops/apps/qt-template-quarkus/<ambiente>/values.yaml.
+# Aquí va SOLO lo técnico (puerto, probes, Ingress, métricas); el plan de
+# recursos de cada ambiente, en values-<ambiente>.yaml. Al promover, el pipeline
+# lo compone en qt-gitops/apps/qt-template-quarkus/<ambiente>/values.yaml.
+#
+# La CONFIGURACIÓN de cada ambiente (variables, application.properties y nombres
+# de secretos) vive en el repo qt-config: dev/, cert/ y prod/<nombre-del-repo>-<ambiente>.yaml.
 # =============================================================================
 
 containerPort: 8080
@@ -28,13 +31,19 @@ metrics:
   enabled: true
   path: /q/metrics
 
-# deploy/config/<ambiente>/application.properties se monta aquí: Quarkus lo lee
-# desde ./config/ (el WORKDIR de la imagen es /deployments) con prioridad sobre
-# el application.properties empaquetado.
+# Los archivos de qt-config (files:) se montan aquí: Quarkus lee ./config/ (el
+# WORKDIR de la imagen es /deployments) con prioridad sobre el
+# application.properties empaquetado.
 configFiles:
   mountPath: /deployments/config
 
-# ConfigMap común → variables de entorno
-config:
-  # Heap de la JVM = 75 % del límite de memoria del pod
-  JAVA_MAX_MEM_RATIO: "75"
+# Su configuración: qt-config <ambiente>/<nombre-del-repo>-<ambiente>.yaml
+# (dev ← rama pre-develop, cert ← develop, prod ← master).
+# Lo que ESTA versión necesita encontrar en qt-config de cada ambiente. DEV, el
+# congelamiento y el pase lo verifican ANTES de desplegar: si falta algo, se
+# frena con un mensaje claro. Agrega aquí cada variable, archivo o secreto nuevo
+# que el código empiece a usar (y créalo en qt-config antes de desplegar).
+requiredConfig:
+  env: []
+  files: [application.properties]
+  secrets: []

@@ -1,0 +1,20 @@
+# =============================================================================
+# qt-template-angular · DEV · configuración del ambiente
+# Vive en el repo qt-config: dev/qt-template-angular-dev.yaml (rama pre-develop).
+# La crea el alta del microservicio; después se cambia con un PR en qt-config.
+#
+#   files    → ConfigMap qt-template-angular-files → /runtime/config.json
+#              (la SPA lo lee al iniciar: la misma imagen sirve en los 3 ambientes)
+#   env      → no aplica a una SPA (Nginx no lo pasa al navegador)
+#   secrets  → una SPA no tiene secretos: todo lo que llega al navegador es público
+# =============================================================================
+
+files:
+  config.json: |
+    {
+      "appName": "qt-template-angular",
+      "environment": "dev",
+      "apiBaseUrl": "/api"
+    }
+
+secrets: []
