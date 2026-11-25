@@ -1,8 +1,8 @@
 # =============================================================================
 # Pase a producción y reversiones. Lo llaman, en cada repo de servicio:
 #   CICD PROD       (cicd-prod.yml)       /agendar, ejecución agendada, /ratificar
-#   Reversión QA    (reversion-qa.yml)    /rechazar
-#   Reversión PROD  (reversion-prod.yml)  /revertir
+#   CICD QA REV     (cicd-qa-rev.yml)     /rechazar
+#   CICD PROD REV   (cicd-prod-rev.yml)   /revertir
 # Todo ocurre en el issue de pase que abre el congelamiento (CICD QA):
 #
 #   /rechazar <motivo>          Pruebas QA → Rechazo QA: descarta el release y QA
@@ -156,7 +156,7 @@ jobs:
 
   # ------------------------------------------------------------------ reversión QA (/rechazar)
   revertir-qa:
-    name: Reversión QA
+    name: CICD QA REV
     needs: command
     if: needs.command.outputs.cmd == 'rechazar'
     uses: $/.github/workflows/_promote.yml

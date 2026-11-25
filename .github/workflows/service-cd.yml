@@ -259,6 +259,9 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
+      image: ${{ steps.release.outputs.image }}
+      digest: ${{ steps.release.outputs.digest }}
+      reused: ${{ steps.release.outputs.reused }}
       reversion_image: ${{ steps.release.outputs.reversion_image }}
       reversion_digest: ${{ steps.release.outputs.reversion_digest }}
       reversion_commit: ${{ steps.release.outputs.reversion_commit }}
@@ -311,8 +314,8 @@ jobs:
           PASE_TZ: ${{ vars.PASE_TZ || 'America/Lima' }}
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
-          IMAGE: ${{ needs.image.outputs.image }}
-          DIGEST: ${{ needs.image.outputs.digest }}
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.release.outputs.digest }}
           COMMIT: ${{ github.sha }}
           REV_TAG: ${{ steps.release.outputs.reversion_tag }}
           REV_IMAGE: ${{ steps.release.outputs.reversion_image }}
@@ -325,6 +328,8 @@ jobs:
   freeze-assets:
     name: Artefactos del release del cambio
     needs: [freeze, image]
+    # El release congelado es inmutable: sus artefactos se publican una sola vez
+    if: needs.freeze.outputs.reused != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -391,8 +396,8 @@ jobs:
     uses: $/.github/workflows/_promote.yml
     with:
       environment: qa
-      image: ${{ needs.image.outputs.image }}
-      digest: ${{ needs.image.outputs.digest }}
+      image: ${{ needs.freeze.outputs.image }}
+      digest: ${{ needs.freeze.outputs.digest }}
       version: ${{ needs.freeze.outputs.tag }}
     permissions:
       contents: read
@@ -422,8 +427,8 @@ jobs:
     uses: $/.github/workflows/_promote.yml
     with:
       environment: qa
-      image: ${{ needs.image.outputs.image }}
-      digest: ${{ needs.image.outputs.digest }}
+      image: ${{ needs.freeze.outputs.image }}
+      digest: ${{ needs.freeze.outputs.digest }}
       version: ${{ needs.freeze.outputs.tag }}
     permissions:
       contents: read

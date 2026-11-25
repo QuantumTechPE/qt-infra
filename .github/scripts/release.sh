@@ -107,6 +107,18 @@ case "$mode" in
     version="${tag%-rc.*}"
     reversion_tag="${tag}-reversion"
 
+    # El release congelado es INMUTABLE: si ya existe (CICD QA lanzado otra vez
+    # sobre el mismo commit), se usa SU imagen, no la recién construida, y no se
+    # vuelven a publicar sus artefactos.
+    reused=false
+    frozen="$(release_deploy_json "$tag")"
+    if [[ -n "$frozen" ]]; then
+      IMAGE="$(jq -r '.image' <<<"$frozen")"
+      DIGEST="$(jq -r '.digest' <<<"$frozen")"
+      reused=true
+      echo "::notice::${tag} ya estaba congelado: se reutiliza ${IMAGE}@${DIGEST:0:19}…"
+    fi
+
     # Lo que corre HOY en producción (qt-gitops) = lo que restaura la reversión
     prod="$(gh api "repos/${GITOPS_REPO}/contents/apps/${SERVICE}/prod/values.yaml?ref=master" --jq '.content' | base64 -d)"
     rev_digest="$(yq '.image.digest // ""' <<<"$prod")"
@@ -152,6 +164,9 @@ case "$mode" in
     {
       echo "tag=${tag}"
       echo "version=${version}"
+      echo "image=${IMAGE}"
+      echo "digest=${DIGEST}"
+      echo "reused=${reused}"
       echo "reversion_tag=${reversion_tag}"
       echo "reversion_image=${rev_image}"
       echo "reversion_digest=${rev_digest}"

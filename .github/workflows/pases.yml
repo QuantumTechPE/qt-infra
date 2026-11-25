@@ -4,7 +4,7 @@
 # un admin en el environment pase-produccion) y dispara los pases cuya hora
 # llegó. El repo del servicio vuelve a validar todo antes de desplegar.
 # GitHub puede retrasar los cron unos minutos en horas de alta carga.
-name: Agendador de pases
+name: Auto · Agendador de pases
 
 on:
   schedule:
