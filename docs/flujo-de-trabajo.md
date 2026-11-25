@@ -39,7 +39,7 @@ Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rec
 | **Pruebas QA** | QA toma el release (arrastrando el pase) | — |
 | **Rechazo QA** | `/rechazar <motivo>` en el issue de pase | Marca los releases como rechazados, cierra el pase y recrea `qt/<n>` para corregir |
 | **Gestión de pase** | `/agendar AAAA-MM-DD HH:MM` (hora de Lima) | Pide la **aprobación de un admin** (environment `pase-produccion`); aprobado, queda agendado en Vault |
-| **Ejecución de pase** | Llega la fecha y hora | El servicio `pase-ticker` del host vigila la agenda cada minuto y despierta al agendador de `qt-infra`, que dispara el pase: despliega la misma imagen en producción |
+| **Ejecución de pase** | Llega la fecha y hora | El servicio `pase-ticker` del host vigila la agenda cada minuto y despierta al agendador de `qt-infra`, que dispara el pase: despliega la misma imagen en producción. Si la ejecución se corta antes de desplegar (p. ej. una caída de GitHub), se puede volver a `/agendar` |
 | **Ratificación producción** | Producción quedó *Healthy* | Espera la validación del usuario |
 | **Done** | `/ratificar` | Release final `vX.Y.Z` (latest, con notas y artefactos), cierra las historias. Es el **único** cierre: si un PR o un `Closes #n` la cierra antes, la plataforma la reabre |
 | **Rechazo producción → Reversión** | `/revertir <motivo>` (solo admins), también desde Done | Despliega el release de reversión, reabre las historias y recrea `qt/<n>` |
