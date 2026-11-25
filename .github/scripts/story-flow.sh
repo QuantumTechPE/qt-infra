@@ -4,7 +4,8 @@
 #
 #   issue abierto (historia, bug o tarea) → código correlativo QT-<n> de la
 #       organización: título "[QT-<n>] …", campo "Código" y carril Backlog
-#   issue asignado      → rama qt/<n> vinculada a la historia → In Progress
+#   issue asignado      → rama qt/<n> (sin vincular: ver recreate_branch) → In Progress
+#   issue cerrado por un PR/commit → se reabre (se cierra al ratificar el pase)
 #   "/rechazar <motivo>" en la historia (Pruebas DEV) → Rechazo DEV
 #   PR desde qt/<n>     → la descripción enlaza la historia ("Historia: #N")
 #
@@ -160,6 +161,31 @@ EOF
   fi
 }
 
+# Una historia se cierra SOLO al ratificar su pase. Si la cierra un PR o un
+# commit ("Closes #n" o un PR conectado a mano) al mergear a master, se reabre:
+# ese merge dispara el congelamiento, que debe incluirla en el pase. El cierre
+# manual de una persona (historia cancelada) se respeta.
+issue_closed() {
+  local node number title code closer
+  number="$(jq -r '.issue.number' "$EVENT")"
+  title="$(jq -r '.issue.title' "$EVENT")"
+  code="$(code_from_title "$title")"
+  [[ -n "$code" ]] || return 0
+  [[ ",$(jq -r '[.issue.labels[].name] | join(",")' "$EVENT")," == *",${PASE_LABEL},"* ]] && return 0
+  closer="$(closed_by_code "$REPO" "$number")"
+  if [[ "$closer" != "PullRequest" && "$closer" != "Commit" ]]; then
+    log "#${number} cerrada por una persona o por la ratificación: se respeta."
+    return 0
+  fi
+
+  gh api -X PATCH "repos/${REPO}/issues/${number}" -f state=open >/dev/null
+  comment "$REPO" "$number" "↩️ **Reabierta.** ${STORY_PREFIX}-${code} se cierra al **ratificar** su pase en producción, no al mergear el PR. El congelamiento la incluye en el pase."
+  node="$(jq -r '.issue.node_id' "$EVENT")"
+  load_project
+  set_status "$node" "Congelamiento (doing)"
+  log "#${number} reabierta (la cerró un ${closer}) → **Congelamiento (doing)**"
+}
+
 # "/rechazar <motivo>" en una historia que está en pruebas DEV
 issue_comment() {
   local body number node title code current user perm reason
@@ -227,6 +253,7 @@ case "$GITHUB_EVENT_NAME" in
     case "$action" in
       opened | reopened) issue_opened ;;
       assigned) issue_assigned ;;
+      closed) issue_closed ;;
     esac ;;
   issue_comment) [[ "$action" == "created" ]] && issue_comment ;;
   pull_request_target) pr_event ;;

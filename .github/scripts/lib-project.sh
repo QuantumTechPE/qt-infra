@@ -8,6 +8,34 @@
 # para las funciones del tablero).
 # -----------------------------------------------------------------------------
 
+# gh con reintentos ante errores TRANSITORIOS de GitHub (5xx, "Something went
+# wrong while executing your query", páginas HTML de error, timeouts). La API
+# (sobre todo GraphQL de Projects) falla así de vez en cuando, y un pase a
+# producción no debe trabarse por eso. Los errores reales (4xx, validación)
+# fallan al primer intento. La salida de un intento fallido se descarta.
+GH_RETRY_RE='HTTP 5[0-9]{2}|Something went wrong|couldn.t respond to your request|invalid character .<.|timed out|timeout|connection reset|unexpected EOF|i/o timeout'
+gh() {
+  local attempt rc out err input="" has_input=false max="${GH_RETRIES:-5}"
+  if [[ " $* " == *" --input - "* ]]; then input="$(cat)"; has_input=true; fi
+  err="$(mktemp)"
+  for ((attempt = 1; ; attempt++)); do
+    if [[ "$has_input" == true ]]; then
+      out="$(command gh "$@" 2>"$err" <<<"$input")" && rc=0 || rc=$?
+    else
+      out="$(command gh "$@" 2>"$err")" && rc=0 || rc=$?
+    fi
+    if ((rc != 0 && attempt < max)) && grep -qiE "$GH_RETRY_RE" "$err"; then
+      echo "::warning::GitHub respondió con un error transitorio (intento ${attempt}/${max}): $(tr '\n' ' ' <"$err" | cut -c1-160)" >&2
+      sleep $((attempt * attempt * 2))
+      continue
+    fi
+    [[ -n "$out" ]] && printf '%s\n' "$out"
+    ((rc == 0)) || cat "$err" >&2
+    rm -f "$err"
+    return "$rc"
+  done
+}
+
 # Carriles del tablero (ciclo de vida de una historia hasta producción):
 #
 #   Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV (→ Rechazo DEV)
@@ -204,23 +232,34 @@ pase_data() {
 }
 
 # recreate_branch <owner/repo> <n° issue> <código>: rama qt/<n> desde master
-# (para corregir tras un rechazo; la anterior se borró al mergear)
+# (al asignar la historia, o para corregir tras un rechazo).
+# La rama NO se vincula al issue (nada de createLinkedBranch): GitHub conecta
+# el PR de una rama vinculada y CIERRA la historia al mergearlo, y la historia
+# debe seguir abierta hasta ratificar su pase. El vínculo lo da el nombre qt/<n>.
 recreate_branch() {
-  local repo="$1" number="$2" code="$3" branch="qt/$3" sha repo_id node
+  local repo="$1" branch="qt/$3" sha
   if gh api "repos/${repo}/git/ref/heads/${branch}" >/dev/null 2>&1; then
     echo "la rama ${branch} ya existe"
     return 0
   fi
   sha="$(gh api "repos/${repo}/git/ref/heads/$(gh api "repos/${repo}" --jq .default_branch)" --jq '.object.sha')"
-  repo_id="$(gh api "repos/${repo}" --jq '.node_id')"
-  node="$(issue_node "$repo" "$number")"
-  gh api graphql -f issue="$node" -f oid="$sha" -f name="$branch" -f repo="$repo_id" -f query='
-    mutation($issue: ID!, $oid: GitObjectID!, $name: String!, $repo: ID!) {
-      createLinkedBranch(input: {issueId: $issue, oid: $oid, name: $name, repositoryId: $repo}) {
-        linkedBranch { ref { name } }
-      }
-    }' >/dev/null
+  gh api -X POST "repos/${repo}/git/refs" -f ref="refs/heads/${branch}" -f sha="$sha" >/dev/null
   echo "rama ${branch} creada desde ${sha:0:7}"
+}
+
+# closed_by_code <owner/repo> <n° issue> → PullRequest | Commit | "" (vacío si
+# lo cerró una persona o la API, como la ratificación del pase)
+closed_by_code() {
+  gh api graphql -F n="$2" -f owner="${1%/*}" -f name="${1#*/}" -f query='
+    query($owner: String!, $name: String!, $n: Int!) {
+      repository(owner: $owner, name: $name) {
+        issue(number: $n) {
+          timelineItems(last: 1, itemTypes: [CLOSED_EVENT]) {
+            nodes { ... on ClosedEvent { closer { __typename } } }
+          }
+        }
+      }
+    }' --jq '.data.repository.issue.timelineItems.nodes[0].closer.__typename // ""' 2>/dev/null || true
 }
 
 # permission <owner/repo> <usuario> → admin | maintain | write | triage | read | none
