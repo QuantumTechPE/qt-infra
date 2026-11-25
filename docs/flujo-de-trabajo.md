@@ -39,7 +39,7 @@ Backlog → Ready → In Progress → Despliegue DEV → Pruebas DEV ──(/rec
 | **Pruebas QA** | QA toma el release (arrastrando el pase) | — |
 | **Rechazo QA** | `/rechazar <motivo>` en el issue de pase | Marca los releases como rechazados, cierra el pase y recrea `qt/<n>` para corregir |
 | **Gestión de pase** | `/agendar AAAA-MM-DD HH:MM` (hora de Lima) | Pide la **aprobación de un admin** (environment `pase-produccion`); aprobado, queda agendado en Vault |
-| **Ejecución de pase** | Llega la fecha y hora | El agendador de `qt-infra` (cada 5 min) dispara el pase: despliega la misma imagen en producción |
+| **Ejecución de pase** | Llega la fecha y hora | El servicio `pase-ticker` del host vigila la agenda cada minuto y despierta al agendador de `qt-infra`, que dispara el pase: despliega la misma imagen en producción |
 | **Ratificación producción** | Producción quedó *Healthy* | Espera la validación del usuario |
 | **Done** | `/ratificar` | Release final `vX.Y.Z` (latest, con notas y artefactos), cierra las historias. Es el **único** cierre: si un PR o un `Closes #n` la cierra antes, la plataforma la reabre |
 | **Rechazo producción → Reversión** | `/revertir <motivo>` (solo admins), también desde Done | Despliega el release de reversión, reabre las historias y recrea `qt/<n>` |
@@ -109,7 +109,7 @@ Todo ocurre en el **issue de pase** (`[PASE] <servicio> vX.Y.Z-rc.N`), con coman
 | `/revertir <motivo>` | Ejecución, Ratificación o Done | **Solo admins** |
 
 - La agenda vive en Vault (`secret/platform/pases/<servicio>`). Solo la escribe el job que aprueba un admin, y el pase vuelve a validar todo antes de desplegar: aprobación, hora y que el issue siga abierto.
-- La hora es la de `America/Lima` (variable de organización `PASE_TZ`). El agendador revisa cada 5 minutos y GitHub puede retrasar los cron unos minutos en horas de alta carga.
+- La hora es la de `America/Lima` (variable de organización `PASE_TZ`). El pase arranca como mucho **1 minuto** después de la hora: lo despierta el servicio `pase-ticker` del host de la plataforma. El cron de GitHub (cada 5 min) queda solo de respaldo, porque GitHub lo trata como *best effort* y puede atrasarlo horas.
 - Reprogramar (`/agendar` otra vez) anula la aprobación anterior y pide una nueva.
 - Tras una **reversión**, el cambio sigue en `master`: corrige en `qt/<n>` (o revierte el código) antes del siguiente congelamiento.
 

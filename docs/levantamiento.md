@@ -218,7 +218,7 @@ done
 ```
 
 - Todas las aplicaciones deben quedar **Synced / Healthy**.
-- En *qt-infra → Actions*, el **Agendador de pases** corre cada 5 minutos en verde.
+- El contenedor `qt-pase-ticker` está arriba (`docker logs qt-pase-ticker` → "vigilando la agenda de pases"). En *qt-infra → Actions*, el **Agendador de pases** corre en verde cuando hay un pase en hora, y además por cron como respaldo.
 - **Prueba de punta a punta:** un push a la rama `qt/<n>` de una historia debe desplegar en DEV.
 - **Credenciales:**
 

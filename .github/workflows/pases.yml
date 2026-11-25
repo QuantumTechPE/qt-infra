@@ -1,12 +1,18 @@
 # Agendador de pases a producción de TODOS los microservicios.
 #
-# Cada 5 minutos revisa la agenda en Vault (escrita solo tras la aprobación de
-# un admin en el environment pase-produccion) y dispara los pases cuya hora
-# llegó. El repo del servicio vuelve a validar todo antes de desplegar.
-# GitHub puede retrasar los cron unos minutos en horas de alta carga.
+# Revisa la agenda en Vault (escrita solo tras la aprobación de un admin en el
+# environment pase-produccion) y dispara los pases cuya hora llegó. El repo del
+# servicio vuelve a validar todo antes de desplegar.
+#
+# Disparo PRINCIPAL: repository_dispatch "pase-agenda" del servicio pase-ticker
+# del host (platform/scripts/pase-ticker.sh), que vigila la agenda cada minuto.
+# El cron es solo RESPALDO: GitHub lo trata como best effort y puede atrasarlo
+# horas.
 name: Auto · Agendador de pases
 
 on:
+  repository_dispatch:
+    types: [pase-agenda]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
