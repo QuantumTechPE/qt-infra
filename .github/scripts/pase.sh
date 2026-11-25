@@ -248,15 +248,20 @@ check_exec() {
   agenda="$(agenda_get)"
   fail() { echo "::error::$1"; [[ -n "$issue" && "$issue" != "null" ]] && comment "$REPO" "$issue" "⛔ No se ejecuta el pase: $1"; exit 1; }
   [[ "$(jq -r '.tag // ""' <<<"$agenda")" == "$tag" ]] || fail "la agenda vigente no corresponde a ${tag}."
-  in_list "$(jq -r '.state' <<<"$agenda")" aprobado despachado || fail "la agenda no está aprobada ($(jq -r '.state' <<<"$agenda"))."
+  # "ejecutando": reintento de una ejecución que se cortó antes de desplegar
+  # (desplegar el mismo digest otra vez es idempotente).
+  in_list "$(jq -r '.state' <<<"$agenda")" aprobado despachado ejecutando || fail "la agenda no está aprobada ($(jq -r '.state' <<<"$agenda"))."
   (($(date +%s) >= $(jq -r '.epoch' <<<"$agenda"))) || fail "aún no es la hora agendada ($(jq -r '.when' <<<"$agenda"))."
   [[ "$(gh api "repos/${REPO}/issues/${issue}" --jq '.state')" == "open" ]] || fail "el issue de pase #${issue} está cerrado."
   data="$(pase_data "$REPO" "$issue")"
   [[ "$(jq -r '.tag' <<<"$data")" == "$tag" ]] || fail "el issue #${issue} no es el pase de ${tag}."
   agenda_state ejecutando
-  load_project
-  move_all "$issue" "Ejecución de pase"
-  comment "$REPO" "$issue" "🚀 **Ejecutando el pase** ${tag} a producción (agendado para $(jq -r '.when' <<<"$agenda"), aprobado por @$(jq -r '.approved_by' <<<"$agenda"))."
+  # El tablero y el comentario son informativos: si GitHub falla aun con los
+  # reintentos, el pase aprobado se ejecuta igual.
+  (load_project && move_all "$issue" "Ejecución de pase") ||
+    echo "::warning::No se pudo mover el tablero a 'Ejecución de pase'; el pase continúa."
+  comment "$REPO" "$issue" "🚀 **Ejecutando el pase** ${tag} a producción (agendado para $(jq -r '.when' <<<"$agenda"), aprobado por @$(jq -r '.approved_by' <<<"$agenda"))." ||
+    echo "::warning::No se pudo comentar en el pase #${issue}; el pase continúa."
   {
     echo "issue=${issue}"
     echo "tag=${tag}"
