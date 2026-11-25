@@ -169,7 +169,7 @@ Resultado:
 3. Vault: `secret/apps/<nombre>/{dev,qa,prod}`, con valores aleatorios distintos por ambiente para las claves `generate: true`.
 4. Un **PR en `qt-gitops`** con `apps/<nombre>/`. Cuando un admin lo aprueba, Argo CD de cada clúster empieza a gestionarlo.
 
-El primer despliegue a dev ocurre con el primer merge, o lanzando el CD a mano (**Actions → CD → Run workflow**).
+El primer despliegue a DEV ocurre con el primer push a la rama de una historia (`qt/<n>`, workflow **CICD DEV**); el merge a `master` congela el release en QA (**CICD QA**). Ver [flujo-de-trabajo.md](flujo-de-trabajo.md).
 
 ## Operación
 

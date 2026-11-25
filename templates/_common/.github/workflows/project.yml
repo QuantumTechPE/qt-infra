@@ -1,6 +1,6 @@
 # Historia de usuario ↔ tablero de la organización ↔ rama/PR.
 # pull_request_target: corre con el código de master, nunca con el del PR.
-name: Project Automation
+name: Auto · Tablero
 
 on:
   issues:

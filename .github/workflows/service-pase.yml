@@ -1,8 +1,12 @@
 # =============================================================================
-# Pase a producción (lo llama .github/workflows/pase.yml de cada repo de
-# servicio). Todo ocurre en el issue de pase que abre el congelamiento:
+# Pase a producción y reversiones. Lo llaman, en cada repo de servicio:
+#   CICD PROD       (cicd-prod.yml)       /agendar, ejecución agendada, /ratificar
+#   Reversión QA    (reversion-qa.yml)    /rechazar
+#   Reversión PROD  (reversion-prod.yml)  /revertir
+# Todo ocurre en el issue de pase que abre el congelamiento (CICD QA):
 #
-#   /rechazar <motivo>          Pruebas QA → Rechazo QA (descarta el release)
+#   /rechazar <motivo>          Pruebas QA → Rechazo QA: descarta el release y QA
+#                               vuelve a lo que corre en producción (reversión)
 #   /agendar AAAA-MM-DD HH:MM   Gestión de pase → aprobación de un ADMIN
 #                               (environment pase-produccion) → agenda en Vault
 #   (agendador de qt-infra)     a la hora agendada → Ejecución de pase → PROD
@@ -149,6 +153,68 @@ jobs:
             --jq '[.[] | select(.state == "approved")] | last | .user.login // "admin"')"
           export APPROVER
           bash .qt-infra/.github/scripts/pase.sh approve "$ISSUE"
+
+  # ------------------------------------------------------------------ reversión QA (/rechazar)
+  revertir-qa:
+    name: Reversión QA
+    needs: command
+    if: needs.command.outputs.cmd == 'rechazar'
+    uses: $/.github/workflows/_promote.yml
+    with:
+      environment: qa
+      image: ${{ needs.command.outputs.image }}
+      digest: ${{ needs.command.outputs.digest }}
+      version: ${{ needs.command.outputs.label }}
+      ref: ${{ needs.command.outputs.commit }}
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+
+  revertido-qa:
+    name: Resultado de la reversión QA
+    needs: [command, revertir-qa]
+    if: always() && needs.command.result == 'success' && needs.command.outputs.cmd == 'rechazar'
+    runs-on: [self-hosted, linux, qt-platform]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Código de la plataforma (qt-infra)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .qt-infra
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Token de la GitHub App
+        id: app
+        uses: ./.qt-infra/.github/actions/github-app-token
+        with:
+          vault-addr: ${{ vars.VAULT_ADDR }}
+          vault-audience: ${{ vars.VAULT_AUDIENCE }}
+          vault-ca: ${{ vars.VAULT_CA_B64 }}
+
+      - name: Comentar el resultado
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.command.outputs.issue }}
+          LABEL: ${{ needs.command.outputs.label }}
+          RESULT: ${{ needs.revertir-qa.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "$RESULT" == success ]]; then
+            msg="↩️ **Reversión QA completada**: QA ejecuta **${LABEL}** (lo que corre en producción)."
+          else
+            msg="🚨 **La reversión QA falló** (${RUN_URL}). Revisa Argo CD de QA y re-ejecuta el job."
+          fi
+          gh api -X POST "repos/${REPO}/issues/${ISSUE}/comments" -f body="$msg" > /dev/null
+          [[ "$RESULT" == success ]]
 
   # ------------------------------------------------------------------ ejecución agendada
   ejecutar:

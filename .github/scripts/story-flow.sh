@@ -188,6 +188,14 @@ issue_comment() {
   fi
   reason="$(sed -E 's#^/rechazar[[:space:]]*##' <<<"$body" | head -n1)"
   set_status "$node" "Rechazo DEV"
+  # El último commit de la rama deja de contar como "probado en DEV": el PR no se
+  # puede mergear hasta que un push nuevo (o re-ejecutar CICD DEV) lo vuelva a desplegar.
+  local head
+  head="$(gh api "repos/${REPO}/git/ref/heads/qt/${code}" --jq '.object.sha' 2>/dev/null || true)"
+  if [[ -n "$head" ]]; then
+    gh api -X POST "repos/${REPO}/statuses/${head}" -f state=failure -f context="deploy/dev" \
+      -f description="$(printf 'Rechazado en pruebas DEV por %s: %s' "$user" "${reason:-sin motivo}" | cut -c1-140)" >/dev/null
+  fi
   comment "$REPO" "$number" "❌ **Rechazo DEV** por @${user}: ${reason:-sin motivo}. Corrige en \`qt/${code}\` y haz push para volver a desplegar."
   log "#${number} → **Rechazo DEV**"
 }

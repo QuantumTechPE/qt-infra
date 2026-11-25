@@ -1,0 +1,30 @@
+# Reversión PROD · "/revertir <motivo>" (solo admins) en el issue de pase:
+# producción vuelve a la versión anterior con el release de reversión, también
+# después de ratificar (Done → Reversión).
+name: Reversión PROD
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pase-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  reversion:
+    name: Reversión PROD
+    if: >-
+      github.event.issue.pull_request == null &&
+      contains(github.event.issue.labels.*.name, 'pase') &&
+      startsWith(github.event.comment.body, '/revertir')
+    uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-pase.yml@master
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+      packages: write
+      attestations: read

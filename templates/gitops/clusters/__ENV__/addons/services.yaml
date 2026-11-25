@@ -48,6 +48,9 @@ spec:
         automated:
           prune: true
           selfHeal: true
+          # La reversión de un servicio que aún no tenía versión lo RETIRA (sin digest
+          # el chart no genera recursos): Argo CD debe poder sincronizar a "vacío".
+          allowEmpty: true
         syncOptions:
           - CreateNamespace=true
           # ServiceMonitor/ExternalSecret dependen de CRDs de los addons
