@@ -52,13 +52,13 @@ Convenciones (check "PR Lint / Convenciones"):
 
 | Workflow | Se ejecuta | Qué hace |
 |---|---|---|
-| **CI** | Cada PR a `master` | Build, tests, Sonar, Semgrep, Trivy, Gitleaks, Dependency Review, imagen y validación de `deploy/` |
-| **CICD DEV** | Push a `qt/<n>` (historia abierta) | Lo mismo + imagen firmada → **DEV**. Marca el commit con `deploy/dev` |
-| **CICD QA** | Merge a `master` | **Congelamiento**: release del cambio y de reversión → QA congela, revierte y recongela → issue de pase |
+| **CI** | Cada PR a `master` | Validación de `deploy/` (dev, qa, prod). En PRs sin historia (Dependabot, GitHub App) también build, tests, Sonar, seguridad e imagen |
+| **CICD DEV** | Push a `qt/<n>` (historia abierta) | **Todas las validaciones** (tests, cobertura, Sonar, Gitleaks, Semgrep, Trivy) + imagen firmada → **DEV**. Marca el commit con `deploy/dev` |
+| **CICD QA** | Merge a `master` | **Congelamiento** sin repetir validaciones: build sin tests e imagen firmada → release del cambio y de reversión → QA congela, revierte y recongela → issue de pase |
 | **CICD PROD** | `/agendar`, `/ratificar` en el issue de pase, y la ejecución agendada | Aprobación del admin, despliegue a **producción** a la hora agendada, release final `vX.Y.Z` |
 | **CICD QA REV** | `/rechazar` en el issue de pase | Descarta el release y QA vuelve a lo que corre en producción |
 | **CICD PROD REV** | `/revertir` en el issue de pase (solo admins) | Producción vuelve a la versión anterior con el release de reversión |
-| Auto · Gobierno, Auto · Gobierno (evento), Auto · Tablero, Auto · CodeQL, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero, análisis de código y convenciones |
+| Auto · Gobierno, Auto · Gobierno (evento), Auto · Tablero, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero y convenciones |
 
 ## Qué hace falta para mergear a `master`
 
@@ -71,7 +71,6 @@ El merge es automático cuando se cumple **todo** esto; la aprobación del admin
 | Aprobación de un admin | `governance/admin-approvals` |
 | **El último commit de la rama se desplegó en DEV y quedó Healthy** | `deploy/dev` (lo publica CICD DEV con la GitHub App) |
 | Rama al día con `master` | **Automático**: la plataforma actualiza la rama (ver abajo) y ese commit nuevo vuelve a pasar por CI y por DEV |
-| Sin alertas de seguridad altas o críticas | Code scanning (CodeQL) |
 
 `deploy/dev` se pierde con cada push nuevo, hasta que CICD DEV lo despliega, y también con `/rechazar` en pruebas DEV. Para volver a habilitarlo, corrige y haz push, o re-ejecuta **CICD DEV** sobre la rama. Los PRs automáticos (Dependabot, GitHub App) no tienen historia y quedan exentos.
 
@@ -146,17 +145,22 @@ Todo ocurre en el **issue de pase** (`[PASE] <servicio> vX.Y.Z-rc.N`), con coman
 
 External Secrets lo sincroniza en ≤ 15 min, y cada clúster solo lee los secretos de su ambiente.
 
-## Qué valida cada PR
+## Dónde corre cada validación
 
-| Check | Bloquea si... |
-|---|---|
-| Build y tests (Maven `--strict-checksums` / `npm ci` + `npm audit signatures`) | Falla un test o el checksum o firma de una dependencia |
-| SonarQube | No pasa el Quality Gate del código nuevo |
-| Gitleaks · Semgrep · CodeQL · Trivy | Hay secretos, SAST ERROR o HIGH, o CVEs HIGH/CRITICAL con fix |
-| Dependency Review | Entra una dependencia vulnerable o con licencia AGPL/SSPL |
-| Imagen + Trivy | La imagen tiene CVEs HIGH/CRITICAL con fix |
-| Despliegue (dev, qa, prod) | `deploy/` no renderiza o produce manifiestos inválidos (recursos, HPA, ConfigMaps) |
-| **CI / Gate** · **PR Lint / Convenciones** · **governance/admin-approvals** | Checks requeridos por el ruleset |
+Las validaciones de calidad y seguridad corren **una sola vez, en DEV**. QA y producción despliegan exactamente el código y la imagen que ya pasaron por ahí.
+
+| Validación | Bloquea si… | CICD DEV | CI (PR de historia) | CI (PR automático) | CICD QA / PROD |
+|---|---|---|---|---|---|
+| Build y tests con cobertura (Maven `--strict-checksums` / `npm ci` + `npm audit signatures`) | Falla un test o el checksum o firma de una dependencia | ✅ | — | ✅ | Solo build, sin tests |
+| SonarQube | No pasa el Quality Gate del código nuevo | ✅ | — | ✅ | — |
+| Gitleaks · Semgrep · Trivy (repo) | Hay secretos, SAST ERROR o CVEs HIGH/CRITICAL con fix | ✅ | — | ✅ | — |
+| Imagen + Trivy | La imagen tiene CVEs HIGH/CRITICAL con fix | ✅ | — | ✅ | Solo build, firma y SBOM |
+| Despliegue (dev, qa, prod) | `deploy/` no renderiza o produce manifiestos inválidos | ✅ (al desplegar) | ✅ | ✅ | ✅ (al desplegar) |
+
+- **PRs de historia:** el CI no repite nada, porque el check `deploy/dev` garantiza que el **mismo commit** ya pasó CICD DEV con todas las validaciones.
+- **PRs automáticos** (Dependabot, GitHub App): no pasan por DEV, así que el CI los valida completos.
+- **Dónde quedan los hallazgos:** como **artefactos del run** (SARIF) y en el resumen de cada job. No se publican en la pestaña *Security* de GitHub, que está desactivada en todos los repos.
+- **Checks requeridos por las reglas:** **CI / Gate**, **PR Lint / Convenciones**, **governance/admin-approvals** y, en microservicios, **deploy/dev**.
 
 ## Cambios en la plataforma
 

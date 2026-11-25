@@ -2,9 +2,11 @@
 # CI corporativo de microservicios (lo llama .github/workflows/ci.yml de cada
 # repo de servicio). Check requerido por el ruleset de master: "CI / Gate".
 #
-#   build + tests ─┬─ SonarQube (Quality Gate)
-#                  └─ imagen + Trivy
-#   Gitleaks · Semgrep · Trivy fs · Dependency Review
+#   Siempre: render y validación de deploy/ en dev, qa y prod.
+#   PRs SIN rama de historia (Dependabot, GitHub App): además build + tests,
+#   SonarQube, Gitleaks · Semgrep · Trivy fs e imagen + Trivy.
+#   PRs desde qt/<n>: esas validaciones ya corrieron en CICD DEV sobre el MISMO
+#   commit (lo exige el check deploy/dev), así que no se repiten aquí.
 # =============================================================================
 name: service-ci
 
@@ -25,6 +27,7 @@ permissions:
 jobs:
   build:
     name: Build
+    if: "!startsWith(github.head_ref, 'qt/')"
     uses: $/.github/workflows/_build.yml
     with:
       stack: ${{ inputs.stack }}
@@ -32,31 +35,11 @@ jobs:
 
   security:
     name: Seguridad
+    if: "!startsWith(github.head_ref, 'qt/')"
     uses: $/.github/workflows/_security.yml
     permissions:
       contents: read
       security-events: write
-
-  dependency-review:
-    name: Dependency Review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Política corporativa (qt-infra)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: .qt-infra
-          sparse-checkout: .github
-          persist-credentials: false
-      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
-        with:
-          config-file: ./.qt-infra/.github/dependency-review-config.yml
 
   deploy:
     name: Despliegue (dev, qa, prod)
@@ -88,7 +71,7 @@ jobs:
   sonar:
     name: SonarQube
     needs: build
-    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
+    if: "!startsWith(github.head_ref, 'qt/') && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'))"
     uses: $/.github/workflows/_sonar.yml
     with:
       stack: ${{ inputs.stack }}
@@ -100,6 +83,7 @@ jobs:
   image:
     name: Imagen
     needs: build
+    if: "!startsWith(github.head_ref, 'qt/')"
     uses: $/.github/workflows/_image.yml
     with:
       stack: ${{ inputs.stack }}
@@ -115,14 +99,15 @@ jobs:
   gate:
     name: Gate
     if: always()
-    needs: [build, security, dependency-review, deploy, sonar, image]
+    needs: [build, security, deploy, sonar, image]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Consolidar resultados
         env:
           RESULTS: ${{ toJSON(needs) }}
-          SONAR_EXPECTED: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
+          # Las ramas de historia (qt/<n>) ya pasaron Sonar en CICD DEV
+          SONAR_EXPECTED: ${{ !startsWith(github.head_ref, 'qt/') && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) }}
         run: |
           {
             echo "## CI Gate"

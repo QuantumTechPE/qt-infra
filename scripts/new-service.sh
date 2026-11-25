@@ -74,12 +74,10 @@ output="${GITHUB_OUTPUT:-/dev/null}"
 case "$type" in
   backend | quarkus)
     stack=quarkus
-    langs='["java-kotlin","actions"]'
     api_path="${api_path:-/api}"
     ;;
   frontend | angular)
     stack=angular
-    langs='["javascript-typescript","actions"]'
     [[ -z "$api_path" || "$api_path" == "/" ]] || die "Un frontend se publica en la raíz (/): no uses --api-path"
     api_path="/"
     ;;
@@ -113,13 +111,12 @@ cp -r templates/_common/. "$dest/"
 
 # Tokens de la plataforma (lista explícita: no confundir con variables propias de
 # otras herramientas, como __MVNW_CMD__ en mvnw.cmd)
-tokens='qt-template-(quarkus|angular)|__(GITHUB_OWNER|INFRA_REPO|STACK|CODEQL_LANGUAGES)__'
+tokens='qt-template-(quarkus|angular)|__(GITHUB_OWNER|INFRA_REPO|STACK)__'
 grep -rlIE "$tokens" "$dest" | xargs sed -i \
   -e "s|qt-template-${stack}|${name}|g" \
   -e "s|__GITHUB_OWNER__|${OWNER}|g" \
   -e "s|__INFRA_REPO__|${INFRA_REPO}|g" \
-  -e "s|__STACK__|${stack}|g" \
-  -e "s|__CODEQL_LANGUAGES__|${langs}|g"
+  -e "s|__STACK__|${stack}|g"
 if [[ "$stack" == "quarkus" ]]; then
   # La ruta pública es la misma en el código (build) y en el Ingress (deploy/)
   sed -i "s|^quarkus.http.root-path=.*|quarkus.http.root-path=${api_path}|" "$dest/src/main/resources/application.properties"

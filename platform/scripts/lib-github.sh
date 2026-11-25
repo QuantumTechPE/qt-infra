@@ -34,6 +34,23 @@ apply_ruleset() {
   fi
 }
 
+# disable_github_security <owner/repo>: apaga secret scanning, push protection,
+# alertas y actualizaciones de seguridad de Dependabot, code scanning (default
+# setup) y el reporte privado de vulnerabilidades. Idempotente.
+disable_github_security() {
+  local repo="$1"
+  gh api -X PATCH "repos/${repo}" --input - >/dev/null 2>&1 <<'JSON' || true
+{ "security_and_analysis": {
+    "secret_scanning": { "status": "disabled" },
+    "secret_scanning_push_protection": { "status": "disabled" },
+    "dependabot_security_updates": { "status": "disabled" } } }
+JSON
+  gh api -X DELETE "repos/${repo}/automated-security-fixes" >/dev/null 2>&1 || true
+  gh api -X DELETE "repos/${repo}/vulnerability-alerts" >/dev/null 2>&1 || true
+  gh api -X DELETE "repos/${repo}/private-vulnerability-reporting" >/dev/null 2>&1 || true
+  gh api -X PATCH "repos/${repo}/code-scanning/default-setup" -f state=not-configured >/dev/null 2>&1 || true
+}
+
 # configure_repo <owner/repo> <service|infra|gitops>
 configure_repo() {
   local repo="$1" kind="$2" l name color desc
@@ -59,14 +76,10 @@ configure_repo() {
   "squash_merge_commit_message": "PR_BODY"
 }
 JSON
-  gh api -X PATCH "repos/${repo}" --input - >/dev/null 2>&1 <<'JSON' || true
-{ "security_and_analysis": {
-    "secret_scanning": { "status": "enabled" },
-    "secret_scanning_push_protection": { "status": "enabled" } } }
-JSON
-  gh api -X PUT "repos/${repo}/vulnerability-alerts" >/dev/null
-  gh api -X PUT "repos/${repo}/automated-security-fixes" >/dev/null || true
-  gh api -X PUT "repos/${repo}/private-vulnerability-reporting" >/dev/null || true
+  # "Security & quality" de GitHub DESACTIVADO por decisión de la organización:
+  # las validaciones las hacen las herramientas propias de la plataforma en CICD
+  # DEV (Gitleaks, Semgrep, Trivy, SonarQube), con sus propios quality gates.
+  disable_github_security "$repo"
 
   local labels=(
     "type:story|0e8a16|Historia de usuario"

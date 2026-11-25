@@ -73,6 +73,9 @@ jobs:
         run: bash .qt-infra/.github/scripts/cd-plan.sh
 
   # ------------------------------------------------------------------ build
+  # Validaciones (tests, cobertura, Sonar, seguridad, CVEs de la imagen) SOLO en
+  # DEV: el congelamiento empaqueta el mismo código que ya pasó por DEV y por el
+  # CI del PR, sin repetirlas.
   build:
     name: Build
     needs: plan
@@ -80,10 +83,12 @@ jobs:
     with:
       stack: ${{ inputs.stack }}
       working-directory: ${{ inputs.working-directory }}
+      validate: ${{ needs.plan.outputs.channel == 'dev' }}
 
   security:
     name: Seguridad
     needs: plan
+    if: needs.plan.outputs.channel == 'dev'
     uses: $/.github/workflows/_security.yml
     permissions:
       contents: read
@@ -92,6 +97,7 @@ jobs:
   sonar:
     name: SonarQube
     needs: [plan, build]
+    if: needs.plan.outputs.channel == 'dev'
     uses: $/.github/workflows/_sonar.yml
     with:
       stack: ${{ inputs.stack }}
@@ -103,11 +109,17 @@ jobs:
   image:
     name: Imagen
     needs: [plan, build, security, sonar]
+    # En el congelamiento seguridad y Sonar se saltan: la imagen se construye igual
+    if: >-
+      !cancelled() && needs.build.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.security.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.sonar.result)
     uses: $/.github/workflows/_image.yml
     with:
       stack: ${{ inputs.stack }}
       working-directory: ${{ inputs.working-directory }}
       push: true
+      scan: ${{ needs.plan.outputs.channel == 'dev' }}
     permissions:
       contents: read
       packages: write
@@ -118,7 +130,7 @@ jobs:
   dependency-track:
     name: SBOM → Dependency-Track
     needs: [plan, image]
-    if: vars.DTRACK_ENABLED == 'true'
+    if: "!cancelled() && vars.DTRACK_ENABLED == 'true' && needs.image.result == 'success'"
     runs-on: [self-hosted, linux, qt-platform]
     timeout-minutes: 10
     permissions:
@@ -247,7 +259,7 @@ jobs:
   freeze:
     name: Congelamiento · releases y pase
     needs: [plan, image]
-    if: needs.plan.outputs.channel == 'freeze'
+    if: "!cancelled() && needs.plan.outputs.channel == 'freeze' && needs.image.result == 'success'"
     runs-on: [self-hosted, linux, qt-platform]
     timeout-minutes: 15
     concurrency:
@@ -329,7 +341,7 @@ jobs:
     name: Artefactos del release del cambio
     needs: [freeze, image]
     # El release congelado es inmutable: sus artefactos se publican una sola vez
-    if: needs.freeze.outputs.reused != 'true'
+    if: "!cancelled() && needs.freeze.result == 'success' && needs.freeze.outputs.reused != 'true'"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -393,6 +405,7 @@ jobs:
   qa-congela:
     name: QA · congela
     needs: [freeze, image]
+    if: "!cancelled() && needs.freeze.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
       environment: qa
@@ -408,6 +421,7 @@ jobs:
   qa-revierte:
     name: QA · revierte
     needs: [freeze, qa-congela]
+    if: "!cancelled() && needs.qa-congela.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
       environment: qa
@@ -424,6 +438,7 @@ jobs:
   qa-recongela:
     name: QA · recongela
     needs: [freeze, image, qa-revierte]
+    if: "!cancelled() && needs.qa-revierte.result == 'success'"
     uses: $/.github/workflows/_promote.yml
     with:
       environment: qa

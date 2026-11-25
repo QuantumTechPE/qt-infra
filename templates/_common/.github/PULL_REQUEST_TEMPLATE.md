@@ -17,7 +17,7 @@
 - [ ] El título sigue Conventional Commits (`feat: ...`, `fix(api): ...`), porque define la próxima versión
 - [ ] Sin secretos en el código (se leen desde Vault)
 - [ ] Documentación actualizada si aplica
-- [ ] Sin nuevas vulnerabilidades HIGH/CRITICAL (Trivy, Semgrep, CodeQL, Dependency Review)
+- [ ] Sin nuevas vulnerabilidades HIGH/CRITICAL (Trivy, Semgrep y Gitleaks en CICD DEV)
 
 ---
 <sub>El merge es automático cuando **un admin** aprueba y el **CI Gate** está en verde.</sub>

@@ -1,6 +1,8 @@
 # Interno: build + tests de un microservicio según su stack.
 # Produce el artefacto inmutable `<prefijo>-dist` (dist.tar.gz + SHA-256) que
 # luego se empaqueta en la imagen sin recompilar.
+# validate=false (congelamiento): solo compila y empaqueta; los tests, la
+# cobertura y las verificaciones ya corrieron en DEV sobre el mismo código.
 name: _build
 
 on:
@@ -16,6 +18,10 @@ on:
       artifact-prefix:
         type: string
         default: app
+      validate:
+        description: Tests, cobertura y verificaciones (true en CI y DEV; false en el congelamiento)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -44,9 +50,15 @@ jobs:
       # mvnw valida el SHA-256 de la distribución de Maven y --strict-checksums
       # falla si una dependencia descargada no coincide con su checksum publicado.
       - name: Compilar, testear y empaquetar
+        env:
+          VALIDATE: ${{ inputs.validate }}
         run: |
           chmod +x mvnw
-          ./mvnw -B -ntp --strict-checksums verify
+          if [[ "$VALIDATE" == "true" ]]; then
+            ./mvnw -B -ntp --strict-checksums verify
+          else
+            ./mvnw -B -ntp --strict-checksums -DskipTests package
+          fi
 
       - name: Empaquetar artefacto y calcular SHA-256
         run: |
@@ -65,7 +77,7 @@ jobs:
           retention-days: 7
 
       - name: Publicar reportes (cobertura y tests)
-        if: always()
+        if: always() && inputs.validate
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ inputs.artifact-prefix }}-reports
@@ -99,12 +111,15 @@ jobs:
         run: npm ci --no-fund --no-audit
 
       - name: Verificar firmas y procedencia de paquetes npm
+        if: inputs.validate
         run: npm audit signatures
 
       - name: Formato
+        if: inputs.validate
         run: npm run format:check
 
       - name: Tests con cobertura
+        if: inputs.validate
         run: npm run test:ci
 
       - name: Build de producción
@@ -127,7 +142,7 @@ jobs:
           retention-days: 7
 
       - name: Publicar cobertura
-        if: always()
+        if: always() && inputs.validate
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ inputs.artifact-prefix }}-reports

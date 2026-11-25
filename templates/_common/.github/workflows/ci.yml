@@ -1,5 +1,6 @@
-# CI de Pull Requests. La lógica vive en __INFRA_REPO__ (plantilla corporativa):
-# build, tests, SonarQube, Semgrep, Trivy, Gitleaks, Dependency Review e imagen.
+# CI de Pull Requests. La lógica vive en __INFRA_REPO__ (plantilla corporativa).
+# PR desde qt/<n>: valida deploy/ (el resto ya corrió en CICD DEV, ver deploy/dev).
+# PR automático: build, tests, SonarQube, Semgrep, Trivy, Gitleaks e imagen.
 # Check requerido por el ruleset: "CI / Gate".
 name: CI
 

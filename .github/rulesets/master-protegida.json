@@ -35,18 +35,6 @@
           { "context": "governance/admin-approvals", "integration_id": __GOVERNANCE_APP_ID__ }
         ]
       }
-    },
-    {
-      "type": "code_scanning",
-      "parameters": {
-        "code_scanning_tools": [
-          {
-            "tool": "CodeQL",
-            "alerts_threshold": "none",
-            "security_alerts_threshold": "high_or_higher"
-          }
-        ]
-      }
     }
   ]
 }
