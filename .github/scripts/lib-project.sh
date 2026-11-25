@@ -65,11 +65,13 @@ pr_story_code() {
 # cuyos PRs se mergearon en ese rango (commits squash "título (#PR)").
 stories_in_range() {
   local repo="$1" range="$2" pr code
-  git log --format='%s' $range | grep -oE '\(#[0-9]+\)$' | tr -dc '0-9\n' |
+  # Con pipefail, un rango sin PRs o cuyo último PR no es de historia no debe
+  # devolver error.
+  git log --format='%s' $range | { grep -oE '\(#[0-9]+\)$' || true; } | tr -dc '0-9\n' |
     while read -r pr; do
       [[ -z "$pr" ]] && continue
       code="$(pr_story_code "$repo" "$pr")"
-      [[ -n "$code" ]] && echo "$code"
+      if [[ -n "$code" ]]; then echo "$code"; fi
     done | sort -un
 }
 
