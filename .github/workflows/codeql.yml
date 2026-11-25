@@ -1,4 +1,4 @@
-name: CodeQL
+name: Auto · CodeQL
 
 on:
   pull_request:

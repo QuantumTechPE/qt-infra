@@ -1,7 +1,7 @@
-# Reversión QA · "/rechazar <motivo>" en el issue de pase: QA rechaza el release,
-# QA vuelve a lo que corre en producción (release de reversión) y se recrean
-# las ramas qt/<n> para corregir.
-name: Reversión QA
+# CICD PROD REV · "/revertir <motivo>" (solo admins) en el issue de pase:
+# producción vuelve a la versión anterior con el release de reversión, también
+# después de ratificar (Done → Reversión).
+name: CICD PROD REV
 
 on:
   issue_comment:
@@ -16,11 +16,11 @@ concurrency:
 
 jobs:
   reversion:
-    name: Reversión QA
+    name: CICD PROD REV
     if: >-
       github.event.issue.pull_request == null &&
       contains(github.event.issue.labels.*.name, 'pase') &&
-      startsWith(github.event.comment.body, '/rechazar')
+      startsWith(github.event.comment.body, '/revertir')
     uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-pase.yml@master
     permissions:
       contents: read

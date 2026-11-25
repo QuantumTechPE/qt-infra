@@ -1,11 +1,11 @@
 # Gobierno de merges: aprobación de un admin → auto-merge.
 # Corre con el código de master (workflow_run); publica el status requerido
 # "governance/admin-approvals" con la GitHub App de plataforma.
-name: Governance
+name: Auto · Gobierno
 
 on:
   workflow_run:
-    workflows: ["Governance Trigger"]
+    workflows: ["Auto · Gobierno (evento)"]
     types: [completed]
 
 permissions:

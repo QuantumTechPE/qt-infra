@@ -1,9 +1,9 @@
 # Gobierno de merges de qt-infra: aprobación de un admin → auto-merge.
-name: Governance
+name: Auto · Gobierno
 
 on:
   workflow_run:
-    workflows: ["Governance Trigger"]
+    workflows: ["Auto · Gobierno (evento)"]
     types: [completed]
 
 permissions:

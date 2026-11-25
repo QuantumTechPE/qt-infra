@@ -56,9 +56,9 @@ Convenciones (check "PR Lint / Convenciones"):
 | **CICD DEV** | Push a `qt/<n>` (historia abierta) | Lo mismo + imagen firmada → **DEV**. Marca el commit con `deploy/dev` |
 | **CICD QA** | Merge a `master` | **Congelamiento**: release del cambio y de reversión → QA congela, revierte y recongela → issue de pase |
 | **CICD PROD** | `/agendar`, `/ratificar` en el issue de pase, y la ejecución agendada | Aprobación del admin, despliegue a **producción** a la hora agendada, release final `vX.Y.Z` |
-| **Reversión QA** | `/rechazar` en el issue de pase | Descarta el release y QA vuelve a lo que corre en producción |
-| **Reversión PROD** | `/revertir` en el issue de pase (solo admins) | Producción vuelve a la versión anterior con el release de reversión |
-| Auto · Gobierno, Auto · Tablero, Auto · CodeQL, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero, análisis de código y convenciones |
+| **CICD QA REV** | `/rechazar` en el issue de pase | Descarta el release y QA vuelve a lo que corre en producción |
+| **CICD PROD REV** | `/revertir` en el issue de pase (solo admins) | Producción vuelve a la versión anterior con el release de reversión |
+| Auto · Gobierno, Auto · Gobierno (evento), Auto · Tablero, Auto · CodeQL, PR Lint | Solos | Aprobaciones y auto-merge, carriles del tablero, análisis de código y convenciones |
 
 ## Qué hace falta para mergear a `master`
 
