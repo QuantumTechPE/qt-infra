@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: pase-${{ github.event.issue.number }}
-  cancel-in-progress: false
-
 jobs:
   reversion:
     name: CICD PROD REV
@@ -21,6 +17,12 @@ jobs:
       github.event.issue.pull_request == null &&
       contains(github.event.issue.labels.*.name, 'pase') &&
       startsWith(github.event.comment.body, '/revertir')
+    # El turno se toma DENTRO del job (no a nivel workflow): un comentario dispara
+    # CICD PROD, CICD QA REV y CICD PROD REV, y los que no aplican se saltan sin
+    # ocupar el turno ni cancelar al que sí corre.
+    concurrency:
+      group: pase-${{ github.event.issue.number || github.event.client_payload.issue }}
+      cancel-in-progress: false
     uses: __GITHUB_OWNER__/__INFRA_REPO__/.github/workflows/service-pase.yml@master
     permissions:
       contents: read
