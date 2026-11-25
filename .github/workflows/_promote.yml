@@ -155,7 +155,8 @@ jobs:
           fi
           bash .qt-infra/.github/scripts/config-check.sh .service/deploy/values.yaml "$cfg" "$ENVIRONMENT" "$SERVICE"
           sha="$(gh api "repos/${CONFIG_REPO}/commits/${branch}" --jq .sha)"
-          SOURCE="${CONFIG_REPO}@${sha:0:7} (${branch}:${path})" \
+          # Misma cabecera que escribe el CICD de qt-config (sin SHA): sin cambios espurios
+          SOURCE="${CONFIG_REPO} (${branch}:${path})" \
             bash .qt-infra/.github/scripts/config-render.sh "$cfg" "$RUNNER_TEMP/config-values.yaml"
           echo "values=$RUNNER_TEMP/config-values.yaml" >> "$GITHUB_OUTPUT"
           echo "🧩 Configuración: ${CONFIG_REPO} ${branch}:${path} (${sha:0:7})" >> "$GITHUB_STEP_SUMMARY"

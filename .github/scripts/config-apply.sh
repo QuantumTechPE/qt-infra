@@ -57,7 +57,9 @@ case "$action" in
         echo "| ${svc} | ⏳ sin alta en GitOps (se aplica al promover) |" >>"$summary"
         continue
       fi
-      if SOURCE="${CONFIG_REPO:-qt-config}@${src:0:7} (${GITHUB_REF_NAME:-local}:${ENVIRONMENT}/$(basename "$f"))" \
+      # Cabecera sin SHA: el mismo contenido produce el mismo config.yaml (sin commits
+      # vacíos); la trazabilidad va en el mensaje del commit GitOps.
+      if SOURCE="${CONFIG_REPO:-qt-config} (${GITHUB_REF_NAME:-local}:${ENVIRONMENT}/$(basename "$f"))" \
         bash "${scripts_dir}/config-render.sh" "$f" "apps/${svc}/${ENVIRONMENT}/config.yaml"; then
         git add "apps/${svc}/${ENVIRONMENT}/config.yaml"
       else
