@@ -19,7 +19,8 @@ Un PR malicioso puede modificar workflows, pero su token OIDC dirá `ref: refs/p
 ## Gobierno
 
 - `master` sin bypass en todos los repos: PR, aprobación de un admin, code owners y checks requeridos.
-- Bloquea el merge solo lo que importa: checks en rojo, falta de aprobación y alertas de seguridad **altas o críticas** de CodeQL. Las conversaciones de los bots y las alertas de menor severidad no bloquean (quedan en *Security → Code scanning* para atenderlas).
+- Bloquea el merge solo lo que importa: checks en rojo, falta de aprobación y, en microservicios, que el último commit no se haya desplegado en DEV. Las conversaciones no bloquean.
+- El *Security & quality* de GitHub (code scanning/CodeQL, secret scanning, push protection, alertas y actualizaciones de seguridad de Dependabot, reporte privado de vulnerabilidades) está **desactivado** en todos los repos, también en los nuevos. Las validaciones las hacen las herramientas propias en CICD DEV (Gitleaks, Semgrep, Trivy, SonarQube) con sus quality gates, y los hallazgos quedan como artefactos de cada run.
 - Un push con **código nuevo** descarta la aprobación (`dismiss_stale_reviews_on_push`). Actualizar la rama con `master` no la descarta (`require_last_push_approval: false`): así la plataforma mantiene al día los PRs aprobados sin pedir otra aprobación, y el commit vuelve a pasar por CI y por DEV.
 - `governance/admin-approvals` lo emite la GitHub App, desde código de `master` (`workflow_run`).
 - En `qt-gitops` solo la App escribe directo (las promociones). La de prod ocurre únicamente tras la aprobación del environment.

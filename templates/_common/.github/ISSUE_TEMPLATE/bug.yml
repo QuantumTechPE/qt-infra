@@ -5,7 +5,7 @@ labels: ["type:bug"]
 body:
   - type: markdown
     attributes:
-      value: Al asignarlo, el pipeline crea la rama `fix/<n>-<titulo>` y lo pasa a **In Progress**.
+      value: Al asignarlo, el pipeline crea la rama `qt/<n>` (código **QT-<n>**) y lo pasa a **In Progress**.
 
   - type: textarea
     id: descripcion

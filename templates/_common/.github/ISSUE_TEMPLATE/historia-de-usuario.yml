@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Al crearla entra al tablero en **Backlog**. Cuando cumpla la Definition of Ready, el PO la mueve a **Ready**.
-        En cuanto alguien se **asigna** la historia, el pipeline crea la rama `feature/<n>-<titulo>` y la pasa a **In Progress**.
+        En cuanto alguien se **asigna** la historia, el pipeline crea la rama `qt/<n>` (código **QT-<n>**) y la pasa a **In Progress**.
 
   - type: input
     id: rol

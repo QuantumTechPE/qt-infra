@@ -32,6 +32,10 @@ on:
         description: Nombre de la imagen sin registry (por defecto, el repo)
         type: string
         default: ""
+      scan:
+        description: Escaneo de CVEs y quality gate (true en CI y DEV; false en el congelamiento)
+        type: boolean
+        default: true
     outputs:
       image:
         description: ghcr.io/<org>/<servicio>
@@ -149,6 +153,7 @@ jobs:
           fi
 
       - name: Escanear imagen (SARIF)
+        if: inputs.scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
@@ -159,14 +164,17 @@ jobs:
           output: trivy-image.sarif
           exit-code: "0"
 
-      - name: Publicar hallazgos
-        if: always() && hashFiles('trivy-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+      # Los hallazgos quedan como artefacto del run (no se publican en GitHub Security)
+      - name: Guardar hallazgos
+        if: always() && inputs.scan && hashFiles('trivy-image.sarif') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          sarif_file: trivy-image.sarif
-          category: image-${{ inputs.artifact-prefix }}
+          name: ${{ inputs.artifact-prefix }}-trivy-image
+          path: trivy-image.sarif
+          retention-days: 30
 
       - name: Quality gate de la imagen (HIGH/CRITICAL)
+        if: inputs.scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
@@ -183,7 +191,8 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
-          skip-setup-trivy: true
+          # Si no hubo escaneo (congelamiento), este paso instala Trivy
+          skip-setup-trivy: ${{ inputs.scan }}
           scan-type: image
           image-ref: ${{ steps.target.outputs.ref }}
           format: cyclonedx

@@ -14,8 +14,8 @@ Este repo es la plataforma: workflows reutilizables, chart común, plantillas de
 | Kubernetes on-premise | OpenShift / Rancher | **k3s** aprovisionado con **Ansible** |
 | ConfigMaps / Secrets | — | ConfigMap desde `qt-gitops` · Secret desde **Vault** vía **External Secrets** |
 | Calidad | SonarQube Developer | **SonarQube Community** + plugin de ramas/PRs |
-| SAST | Checkmarx | **Semgrep** + **CodeQL** |
-| SCA / artefactos | JFrog Xray | **Trivy** + **Dependency-Track** + Dependency Review |
+| SAST | Checkmarx | **Semgrep** |
+| SCA / artefactos | JFrog Xray | **Trivy** + **Dependency-Track** |
 | Secretos | CyberArk / Vault Enterprise | **HashiCorp Vault** (TLS, OIDC de GitHub, auth Kubernetes) |
 | Registro de artefactos | Artifactory | **GHCR** (imágenes) + **GitHub Releases** (binarios) |
 | Supply chain | Xray + firma propia | SHA-256 en cada etapa, **cosign**, **SLSA**, SBOM y **Kyverno** (solo imágenes firmadas) |
@@ -62,7 +62,7 @@ flowchart LR
 .
 ├── .github/workflows/
 │   ├── service-ci.yml · service-cd.yml           ← los usan TODOS los microservicios
-│   ├── service-pr-lint / -governance / -project / -codeql.yml · gitops-ci.yml
+│   ├── service-pr-lint / -governance / -project / -pase.yml · gitops-ci.yml
 │   ├── _build · _security · _sonar · _image · _promote.yml   (internos)
 │   └── ci.yml · infra-checks.yml · ...            CI propio de qt-infra
 ├── k8s/

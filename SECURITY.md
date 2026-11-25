@@ -10,4 +10,4 @@ Solo la última versión publicada en [Releases](../../releases) recibe correcci
 
 ## Cómo protegemos el código
 
-Consulta [docs/seguridad.md](docs/seguridad.md): gestión de secretos con Vault (OIDC), firma y procedencia de artefactos, y escaneos automáticos (CodeQL, Semgrep, Trivy, Gitleaks, Dependency-Track).
+Consulta [docs/seguridad.md](docs/seguridad.md): gestión de secretos con Vault (OIDC), firma y procedencia de artefactos, y escaneos automáticos en DEV (Semgrep, Trivy, Gitleaks, SonarQube, Dependency-Track).

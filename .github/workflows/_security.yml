@@ -55,12 +55,14 @@ jobs:
           gitleaks git . "${cfg[@]}" --log-opts="$range" --redact \
             --report-format sarif --report-path gitleaks.sarif --exit-code 1
 
-      - name: Publicar hallazgos
+      # Los hallazgos quedan como artefacto del run (no se publican en GitHub Security)
+      - name: Guardar hallazgos
         if: always() && hashFiles('gitleaks.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          sarif_file: gitleaks.sarif
-          category: gitleaks
+          name: hallazgos-gitleaks
+          path: gitleaks.sarif
+          retention-days: 30
 
   sast:
     name: SAST (Semgrep)
@@ -89,12 +91,14 @@ jobs:
           echo "### Semgrep: ${errors} error(es), ${warnings} warning(s)" >> "$GITHUB_STEP_SUMMARY"
           echo "SEMGREP_ERRORS=${errors}" >> "$GITHUB_ENV"
 
-      - name: Publicar hallazgos
+      # Los hallazgos quedan como artefacto del run (no se publican en GitHub Security)
+      - name: Guardar hallazgos
         if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          sarif_file: semgrep.sarif
-          category: semgrep
+          name: hallazgos-semgrep
+          path: semgrep.sarif
+          retention-days: 30
 
       - name: Quality gate SAST
         run: |
@@ -133,12 +137,14 @@ jobs:
           output: trivy-fs.sarif
           exit-code: "0"
 
-      - name: Publicar hallazgos
+      # Los hallazgos quedan como artefacto del run (no se publican en GitHub Security)
+      - name: Guardar hallazgos
         if: always() && hashFiles('trivy-fs.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          sarif_file: trivy-fs.sarif
-          category: trivy-fs
+          name: hallazgos-trivy-fs
+          path: trivy-fs.sarif
+          retention-days: 30
 
       - name: Quality gate HIGH/CRITICAL
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
