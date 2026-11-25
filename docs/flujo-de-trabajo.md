@@ -76,7 +76,7 @@ El merge es automático cuando se cumple **todo** esto; la aprobación del admin
 
 **Ramas al día, sin intervención.** Si un PR aprobado queda atrasado porque `master` avanzó, la plataforma hace merge de `master` en la rama (como el botón *Update branch*):
 - **En el momento de la aprobación:** lo hace el gobierno.
-- **Después:** lo hace el workflow **Auto · Ramas al día** de `qt-infra`. Revisa cada 5 minutos **todos los repos** de la organización, incluidos los micros que se creen después.
+- **Después:** lo hace el workflow **Auto · Ramas al día** de `qt-infra`, que el servicio `pase-ticker` del host dispara cada 5 minutos (el cron de GitHub queda de respaldo). Revisa **todos los repos** de la organización, incluidos los micros que se creen después.
 - **La aprobación se mantiene**, porque actualizar con `master` no es código nuevo. CI vuelve a correr, y en los microservicios **CICD DEV** redespliega en DEV y renueva `deploy/dev`. El auto-merge termina el trabajo.
 - **Conflictos:** si hay conflictos con `master`, la rama no se puede actualizar sola. Hay que resolverlos en la rama, con un push que sí pide aprobar de nuevo.
 

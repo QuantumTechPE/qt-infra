@@ -9,6 +9,8 @@
 #   ssh-key                         Llave SSH para administrar los nodos k3s
 #   k8s-provision <dev|qa|prod>     Instala/actualiza k3s en los servidores (Ansible)
 #   k8s-local <dev|qa|prod>         Alternativa sin servidores: clúster k3s local (k3d)
+#   k8s-local-stop <dev|qa|prod>    Apaga un clúster local (libera su RAM)
+#   k8s-local-start <dev|qa|prod>   Enciende un clúster local apagado (robusto tras reiniciar Docker)
 #   k8s-bootstrap <dev|qa|prod>     Vault ⇄ clúster + Argo CD + GitOps
 #   gitops-render                   Regenera el contenido inicial de qt-gitops (.generated/)
 #   secret-list <servicio> <env>    Claves (sin valores) de secret/apps/<servicio>/<env>
@@ -145,6 +147,43 @@ EOF
     set_env_default "INGRESS_DOMAIN_${env^^}" "${env}.${PLATFORM_HOST%%,*}.nip.io"
     set_env_default "INGRESS_PORT_${env^^}" "$port"
     ok "Clúster ${name} listo (kubeconfig: platform/.secrets/kubeconfig-${env}). Siguiente: ./qt.sh k8s-bootstrap ${env}"
+    ;;
+  k8s-local-stop)
+    [[ "${1:-}" =~ ^(dev|qa|prod)$ ]] || die "uso: qt.sh k8s-local-stop <dev|qa|prod>"
+    k3d cluster stop "qt-$1"
+    ok "Clúster qt-$1 apagado. Para encenderlo: ./qt.sh k8s-local-start $1"
+    ;;
+  k8s-local-start)
+    # Tras reiniciar Docker las IPs de los contenedores cambian: el agente k3s
+    # guarda la IP vieja del server (que puede ser ahora la de OTRO clúster:
+    # "not authorized") y `k3d cluster start` se cuelga esperando al agente con el
+    # serverlb apagado. Se enciende nodo por nodo, se borra ese caché del agente
+    # y se reinician agente y serverlb.
+    [[ "${1:-}" =~ ^(dev|qa|prod)$ ]] || die "uso: qt.sh k8s-local-start <dev|qa|prod>"
+    name="qt-$1"
+    # Recién encendido, Kubernetes aún muestra el "Ready" de antes de apagar: se
+    # espera a que server y agente vuelvan a anunciarse en SUS logs (sin relojes).
+    log_count() { docker logs "k3d-${name}-$1" 2>&1 | grep -c "$2" || true; }
+    srv_before="$(log_count server-0 'k3s is up and running')"
+    # Si el server ya estaba encendido no vuelve a anunciarse: no se le espera
+    if [[ "$(docker inspect -f '{{.State.Running}}' "k3d-${name}-server-0" 2>/dev/null)" == true ]]; then srv_before=-1; fi
+    for node in server-0 agent-0 serverlb; do docker start "k3d-${name}-${node}" >/dev/null; done
+    docker exec "k3d-${name}-agent-0" rm -f /var/lib/rancher/k3s/agent/etc/k3s-agent-load-balancer.json \
+      /var/lib/rancher/k3s/agent/etc/k3s-api-server-agent-load-balancer.json
+    agent_before="$(log_count agent-0 'Successfully registered node')"
+    docker restart "k3d-${name}-agent-0" "k3d-${name}-serverlb" >/dev/null
+    info "Esperando que server y agente de ${name} se registren..."
+    up=false
+    for _ in $(seq 1 60); do
+      if (($(log_count server-0 'k3s is up and running') > srv_before &&
+        $(log_count agent-0 'Successfully registered node') > agent_before)); then
+        up=true
+        break
+      fi
+      sleep 5
+    done
+    [[ "$up" == true ]] || die "El clúster ${name} no se registró a tiempo (revisa: docker logs k3d-${name}-agent-0)"
+    ok "Clúster ${name} encendido: server y agente registrados"
     ;;
   k8s-bootstrap) ensure_env; tool k8s-bootstrap.sh "$@" ;;
   gitops-render) ensure_env; tool gitops-render.sh ;;

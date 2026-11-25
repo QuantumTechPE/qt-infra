@@ -8,6 +8,8 @@
   ssh-key                                Llave SSH para administrar los nodos k3s
   k8s-provision <dev|qa|prod>            Instala/actualiza k3s en los servidores (Ansible)
   k8s-local <dev|qa|prod>                Alternativa sin servidores: cluster k3s en esta PC (k3d)
+  k8s-local-stop <dev|qa|prod>           Apaga un cluster local (libera su RAM)
+  k8s-local-start <dev|qa|prod>          Enciende un cluster local apagado (robusto tras reiniciar Docker)
   k8s-bootstrap <dev|qa|prod>            Vault <-> cluster + Argo CD + GitOps
   gitops-render                          Regenera el contenido inicial de qt-gitops (.generated/)
   secret-list <servicio> <env>           Claves (sin valores) de secret/apps/<servicio>/<env>
@@ -23,7 +25,7 @@
   .\qt.ps1 k8s-provision dev
 #>
 param(
-    [ValidateSet('up', 'github-app', 'ssh-key', 'k8s-provision', 'k8s-local', 'k8s-bootstrap', 'gitops-render', 'secret-list', 'secret-set', 'secret-generate', 'xray', 'status', 'logs', 'vault-token', 'down', 'destroy', 'help')]
+    [ValidateSet('up', 'github-app', 'ssh-key', 'k8s-provision', 'k8s-local', 'k8s-local-start', 'k8s-local-stop', 'k8s-bootstrap', 'gitops-render', 'secret-list', 'secret-set', 'secret-generate', 'xray', 'status', 'logs', 'vault-token', 'down', 'destroy', 'help')]
     [string]$Command = 'help',
     [string]$Arg1,
     [string]$Arg2,
@@ -157,6 +159,35 @@ $LocalIngressPorts = @{ dev = '8081'; qa = '8082'; prod = '8083' }
 $LocalApiPorts = @{ dev = '6551'; qa = '6552'; prod = '6553' }
 
 # k3d fijado por version y verificado por SHA-256 (platform/.bin, ignorado por git)
+# Enciende un cluster k3d apagado. Tras reiniciar Docker las IPs de los
+# contenedores cambian: el agente k3s guarda la IP vieja del server (que puede
+# ser ahora la de OTRO cluster: 'not authorized') y 'k3d cluster start' se
+# cuelga esperando al agente con el serverlb apagado. Por eso se enciende nodo
+# por nodo, se borra ese cache del agente y se reinician agente y serverlb.
+function Start-LocalCluster([string]$Name) {
+    # Recien encendido, Kubernetes aun muestra el 'Ready' de antes de apagar: se
+    # espera a que server y agente vuelvan a anunciarse en SUS logs (sin relojes).
+    $ErrorActionPreference = 'Continue'
+    function Get-LogCount([string]$Node, [string]$Text) {
+        @(& docker logs "k3d-$Name-$Node" 2>&1 | ForEach-Object { "$_" } | Select-String -SimpleMatch $Text).Count
+    }
+    $srvBefore = Get-LogCount 'server-0' 'k3s is up and running'
+    # Si el server ya estaba encendido no vuelve a anunciarse: no se le espera
+    if ((& docker inspect -f '{{.State.Running}}' "k3d-$Name-server-0" 2>$null) -eq 'true') { $srvBefore = -1 }
+    foreach ($node in 'server-0', 'agent-0', 'serverlb') { Invoke-Native docker start "k3d-$Name-$node" | Out-Null }
+    Invoke-Native docker exec "k3d-$Name-agent-0" rm -f /var/lib/rancher/k3s/agent/etc/k3s-agent-load-balancer.json /var/lib/rancher/k3s/agent/etc/k3s-api-server-agent-load-balancer.json | Out-Null
+    $agentBefore = Get-LogCount 'agent-0' 'Successfully registered node'
+    Invoke-Native docker restart "k3d-$Name-agent-0" "k3d-$Name-serverlb" | Out-Null
+    Write-Info "Esperando que server y agente de $Name se registren..."
+    $up = $false
+    for ($i = 0; $i -lt 60; $i++) {
+        if ((Get-LogCount 'server-0' 'k3s is up and running') -gt $srvBefore -and
+            (Get-LogCount 'agent-0' 'Successfully registered node') -gt $agentBefore) { $up = $true; break }
+        Start-Sleep -Seconds 5
+    }
+    if (-not $up) { throw "El cluster $Name no se registro a tiempo (revisa: docker logs k3d-$Name-agent-0)" }
+    Write-Ok "Cluster $Name encendido: server y agente registrados"
+}
 function Get-K3d {
     $exe = Join-Path $PSScriptRoot '.bin\k3d.exe'
     if (-not (Test-Path $exe)) {
@@ -260,6 +291,12 @@ switch ($Command) {
         Write-Ok "Cluster $name listo (kubeconfig: platform/.secrets/kubeconfig-$Arg1; kubectl --context k3d-$name)"
         Write-Host "  Siguiente: .\qt.ps1 k8s-bootstrap $Arg1   (requiere el repo qt-gitops)"
     }
+    'k8s-local-stop' {
+        Assert-Env $Arg1
+        Invoke-Native (Get-K3d) cluster stop "qt-$Arg1"
+        Write-Ok "Cluster qt-$Arg1 apagado. Para encenderlo: .\qt.ps1 k8s-local-start $Arg1"
+    }
+    'k8s-local-start' { Assert-Env $Arg1; Start-LocalCluster "qt-$Arg1" }
     'k8s-bootstrap' { Assert-Env $Arg1; Initialize-Env; Invoke-Tool k8s-bootstrap.sh $Arg1 }
     'gitops-render' { Initialize-Env; Invoke-Tool gitops-render.sh }
     'xray' {
