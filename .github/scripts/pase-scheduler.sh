@@ -11,6 +11,8 @@
 #           VAULT_CACERT
 # -----------------------------------------------------------------------------
 set -euo pipefail
+# shellcheck source=lib-project.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-project.sh" # gh con reintentos
 
 : "${GH_TOKEN:?}" "${VAULT_ADDR:?}" "${VAULT_TOKEN:?}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
