@@ -1,6 +1,8 @@
 {{- if include "qt-service.enabled" . }}
 {{- /* Valores de la plataforma + config del servicio (el servicio tiene prioridad) */ -}}
 {{- $platform := dict "QT_SERVICE" (include "qt-service.name" .) "QT_ENVIRONMENT" .Values.environment }}
+{{- /* Versión desplegada (tag de la imagen: vX.Y.Z-rc.N en QA/PROD, sha-<commit> en DEV) */ -}}
+{{- with .Values.image.tag }}{{- $_ := set $platform "QT_VERSION" . }}{{- end }}
 {{- $data := merge (deepCopy (.Values.config | default dict)) $platform }}
 # ConfigMap del ambiente: valores NO secretos → variables de entorno.
 apiVersion: v1

@@ -30,6 +30,8 @@ summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 SERVICE="${REPO#*/}"
 PASE_TZ="${PASE_TZ:-America/Lima}"
 server="${GITHUB_SERVER_URL:-https://github.com}"
+# Link directo al run actual (aprobación del pase, ejecución, reversión)
+run_url="${server}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}"
 log() { echo "$*"; echo "- $*" >>"$summary"; }
 
 # ---------------------------------------------------------------- Vault (agenda)
@@ -195,7 +197,7 @@ command_pase() {
       [[ -n "${VAULT_TOKEN:-}" ]] && agenda_state reprogramado # anula la aprobación anterior
       move_all "$issue" "Gestión de pase"
       set_text "$(issue_node "$REPO" "$issue")" "Pase" "${when} (${PASE_TZ})"
-      comment "$REPO" "$issue" "📅 @${user} solicita el pase para **${when}** (${PASE_TZ}). Falta la **aprobación de un admin**: Actions → este run → *Review deployments* → \`pase-produccion\`."
+      comment "$REPO" "$issue" "📅 @${user} solicita el pase para **${when}** (${PASE_TZ}). Falta la **aprobación de un admin**: 👉 [**Aprobar el pase**](${run_url}) → *Review deployments* → \`pase-produccion\` → *Approve and deploy*."
       {
         echo "cmd=agendar"
         echo "when=${when}"
@@ -218,7 +220,7 @@ command_pase() {
         { deny "\`/revertir\` aplica con el pase en producción (ahora: ${lane:-sin carril})."; return 0; }
       data="$(pase_data "$REPO" "$issue")"
       move_all "$issue" "Rechazo producción"
-      comment "$REPO" "$issue" "⏪ @${user} revierte producción: ${arg:-sin motivo}. Desplegando \`$(jq -r '.reversion.tag' <<<"$data")\` (restaura **$(jq -r '.reversion.label' <<<"$data")**)…"
+      comment "$REPO" "$issue" "⏪ @${user} revierte producción: ${arg:-sin motivo}. Desplegando \`$(jq -r '.reversion.tag' <<<"$data")\` (restaura **$(jq -r '.reversion.label' <<<"$data")**)… 👉 [Ver CICD PROD REV](${run_url})"
       {
         echo "cmd=revertir"
         echo "image=$(jq -r '.reversion.image' <<<"$data")"
@@ -267,7 +269,7 @@ check_exec() {
   # reintentos, el pase aprobado se ejecuta igual.
   (load_project && move_all "$issue" "Ejecución de pase") ||
     echo "::warning::No se pudo mover el tablero a 'Ejecución de pase'; el pase continúa."
-  comment "$REPO" "$issue" "🚀 **Ejecutando el pase** ${tag} a producción (agendado para $(jq -r '.when' <<<"$agenda"), aprobado por @$(jq -r '.approved_by' <<<"$agenda"))." ||
+  comment "$REPO" "$issue" "🚀 **Ejecutando el pase** ${tag} a producción (agendado para $(jq -r '.when' <<<"$agenda"), aprobado por @$(jq -r '.approved_by' <<<"$agenda")). 👉 [Ver CICD PROD](${run_url})" ||
     echo "::warning::No se pudo comentar en el pase #${issue}; el pase continúa."
   {
     echo "issue=${issue}"
@@ -284,11 +286,11 @@ executed() {
   if [[ "$result" == "ok" ]]; then
     [[ -n "${VAULT_TOKEN:-}" ]] && agenda_state ejecutado
     move_all "$issue" "Ratificación producción"
-    comment "$REPO" "$issue" "🟢 **Pase ejecutado**: producción está *Healthy*. Valida y comenta \`/ratificar\`, o \`/revertir <motivo>\` (admins)."
+    comment "$REPO" "$issue" "🟢 **Pase ejecutado** ([CICD PROD](${run_url})): producción está *Healthy*. Valida y comenta \`/ratificar\`, o \`/revertir <motivo>\` (admins)."
   else
     [[ -n "${VAULT_TOKEN:-}" ]] && agenda_state fallido
     move_all "$issue" "Reversión"
-    comment "$REPO" "$issue" "🔴 **El pase falló**: Argo CD no quedó *Healthy* y el pipeline restauró la versión anterior (rollback GitOps). Revisa el run: ${server}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}"
+    comment "$REPO" "$issue" "🔴 **El pase falló**: Argo CD no quedó *Healthy* y el pipeline restauró la versión anterior (rollback GitOps). 👉 [Ver CICD PROD](${run_url})"
   fi
 }
 

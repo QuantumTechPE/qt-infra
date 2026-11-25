@@ -218,7 +218,7 @@ done
 ```
 
 - Todas las aplicaciones deben quedar **Synced / Healthy**.
-- El contenedor `qt-pase-ticker` está arriba (`docker logs qt-pase-ticker` → "vigilando la agenda de pases"). En *qt-infra → Actions*, el **Agendador de pases** corre en verde cuando hay un pase en hora, y además por cron como respaldo.
+- El contenedor `qt-pase-ticker` está arriba (`docker logs qt-pase-ticker` → "vigilando la agenda de pases … y Ramas al día …"). En *qt-infra → Actions*, el **Agendador de pases** corre en verde cuando hay un pase en hora, y además por cron como respaldo.
 - **Prueba de punta a punta:** un push a la rama `qt/<n>` de una historia debe desplegar en DEV.
 - **Credenciales:**
 
@@ -229,6 +229,22 @@ done
   | SonarQube | Vault `secret/platform/sonarqube-admin` |
 
   El token de Vault se obtiene con `./qt.sh vault-token`.
+
+### Lecciones de las pruebas en la PC
+
+Aplican al servidor definitivo:
+
+- **Los cron de GitHub no son puntuales.** El *Agendador de pases* y *Ramas al día* llegaron a correr con horas de atraso. Los dispara `qt-pase-ticker`, parte de `qt up`, así que el servidor de plataforma necesita salida HTTPS a `api.github.com`. Si ese contenedor está abajo, un pase aprobado no se ejecuta a su hora.
+- **La API de GitHub a veces falla** (5xx, "Something went wrong"). Los scripts reintentan, y un error del tablero no detiene un pase aprobado. Si aun así una ejecución se corta antes de desplegar, vuelve a comentar `/agendar` en el issue de pase.
+- **Dimensiona la RAM con margen.** Cada clúster consume ~4–5 GB en reposo (ver la tabla de [Requisitos](#0-requisitos)). Con los tres ambientes en una sola máquina, Docker se queda sin memoria y se cae.
+
+Solo para la PC de pruebas (k3d):
+
+| Necesidad | Comando o ajuste |
+|---|---|
+| Liberar RAM apagando un clúster | `.\qt.ps1 k8s-local-stop <dev\|qa\|prod>` |
+| Volver a encenderlo, incluso tras reiniciar Docker | `.\qt.ps1 k8s-local-start <dev\|qa\|prod>`: enciende nodo por nodo, limpia la IP vieja que guarda el agente ("not authorized") y espera a que se registre. No uses `k3d cluster start`: se cuelga en ese caso |
+| Más RAM para Docker Desktop | Por defecto WSL usa el 50 % de la RAM (~16 GB en una PC de 32 GB): no alcanza para los 3 clústeres + SonarQube. Crea `%UserProfile%\.wslconfig` con `[wsl2]` y `memory=24GB`, y luego `wsl --shutdown` (reinicia Docker; después usa `k8s-local-start`) |
 
 ## 7. Apagar el servidor de pruebas
 

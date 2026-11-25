@@ -101,6 +101,13 @@ Mientras no tengas servidores, `k8s-local` crea cada clúster como contenedores 
 
 Descarga k3d 5.9.0 en `platform/.bin` y verifica su SHA-256. Deja `platform/.secrets/kubeconfig-<ambiente>` y completa en `.env` `INGRESS_DOMAIN_<AMBIENTE>=<ambiente>.<PLATFORM_HOST>.nip.io` e `INGRESS_PORT_<AMBIENTE>`. Las URLs quedan como `http://grafana.dev.192.168.18.47.nip.io:8081`. También agrega los contextos `k3d-qt-<ambiente>` a tu `~/.kube/config`.
 
+Para ahorrar RAM, apaga el clúster que no uses y vuelve a encenderlo cuando haga falta:
+
+```powershell
+.\qt.ps1 k8s-local-stop prod
+.\qt.ps1 k8s-local-start prod   # también tras reiniciar Docker (no uses "k3d cluster start")
+```
+
 Para pasar al servidor definitivo, sigue [levantamiento.md](levantamiento.md).
 
 Ten en cuenta:

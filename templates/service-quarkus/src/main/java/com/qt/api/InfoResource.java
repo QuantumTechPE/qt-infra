@@ -8,6 +8,8 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
  * Expone la identidad de la aplicación desplegada (nombre, versión y ambiente).
+ * La versión es la del release desplegado (QT_VERSION, la pone la plataforma
+ * desde el tag de la imagen); fuera del clúster, la del pom.
  * El pipeline de CD usa este endpoint como smoke test para confirmar que la
  * versión correcta quedó corriendo.
  */
@@ -21,7 +23,7 @@ public class InfoResource {
 
     public InfoResource(
             @ConfigProperty(name = "quarkus.application.name") String name,
-            @ConfigProperty(name = "quarkus.application.version") String version,
+            @ConfigProperty(name = "qt.version") String version,
             @ConfigProperty(name = "qt.environment", defaultValue = "local") String environment) {
         this.name = name;
         this.version = version;

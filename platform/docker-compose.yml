@@ -66,9 +66,10 @@ services:
     depends_on: [vault]
     networks: [platform]
 
-  # Despertador del agendador de pases: el cron de GitHub es best effort y puede
-  # atrasarse horas. Cada minuto lee la agenda de Vault (solo lectura) y, si un
-  # pase aprobado llegó a su hora, dispara el agendador de qt-infra.
+  # Despertador de los agendadores de qt-infra: los cron de GitHub son best
+  # effort y pueden atrasarse horas. Cada minuto lee la agenda de Vault (solo
+  # lectura) y, si un pase aprobado llegó a su hora, dispara el agendador de
+  # pases; cada 5 minutos dispara "Ramas al día".
   pase-ticker:
     image: qt-platform/toolbox:local
     pull_policy: never
@@ -80,6 +81,7 @@ services:
       GITHUB_OWNER: ${GITHUB_OWNER:?}
       INFRA_REPO: ${INFRA_REPO:-qt-infra}
       PASE_TICK_SECONDS: ${PASE_TICK_SECONDS:-60}
+      RAMAS_AL_DIA_SECONDS: ${RAMAS_AL_DIA_SECONDS:-300}
     volumes:
       - ./scripts:/scripts:ro
       - ./.secrets/pase-ticker-approle:/qt/approle:ro
