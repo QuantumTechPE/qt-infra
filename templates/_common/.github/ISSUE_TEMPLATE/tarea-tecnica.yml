@@ -5,7 +5,7 @@ labels: ["type:task"]
 body:
   - type: markdown
     attributes:
-      value: Al asignarla, el pipeline crea la rama `chore/<n>-<titulo>` y la pasa a **In Progress**.
+      value: Al asignarla, el pipeline crea la rama `qt/<n>` (código **QT-<n>**) y la pasa a **In Progress**.
 
   - type: textarea
     id: descripcion

@@ -122,7 +122,7 @@ ADMINS="ana,luis" DEVELOPERS="pedro,maria" bash platform/scripts/github-bootstra
 | Ámbito | Resultado |
 |---|---|
 | Organización | Teams `admins` y `developers`. Política de Actions: allowlist, `GITHUB_TOKEN` de solo lectura, forks con aprobación y runners habilitados para repos públicos |
-| Tablero | GitHub Project con Backlog → Ready → In Progress → In Review → Done, más Prioridad, Story points y Componente |
+| Tablero | GitHub Project con los 16 carriles del flujo (Backlog → Despliegue DEV → Congelamiento → Gestión de pase → … → Done, ver [flujo-de-trabajo.md](flujo-de-trabajo.md)), más Código, Versión, Pase, Prioridad, Story points y Componente |
 | Variables de org | `VAULT_ADDR`, `VAULT_CA_B64`, `VAULT_AUDIENCE`, `GITOPS_REPO`, `PROJECT_NUMBER`... (**ningún secreto**) |
 | `qt-infra` | Push inicial y repo protegido |
 | `qt-gitops` | Se genera con `clusters/dev`, `clusters/qa` y `clusters/prod` (URL y CA de Vault, dominio del Ingress, política de imágenes) y se protege. La GitHub App puede escribir las promociones |
