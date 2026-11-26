@@ -22,7 +22,7 @@ Hay **tres niveles**:
 | Nivel | Qué es | Dónde se configura |
 |---|---|---|
 | [1. Tamaño del clúster](#1-tamaño-de-cada-clúster) | Las máquinas (VMs) de cada ambiente | Inventarios de Ansible + tamaño de cada VM |
-| [2. Componentes de plataforma](#2-componentes-de-plataforma-por-ambiente) | Prometheus, Grafana, Loki, Alloy, Kyverno, External Secrets, Argo CD | Repo **`qt-gitops`** (y `k8s-bootstrap.sh` para Argo CD) |
+| [2. Componentes de plataforma](#2-componentes-de-plataforma-por-ambiente) | Prometheus, Grafana, Loki, Tempo, Alloy, Kyverno, External Secrets, Argo CD | Repo **`qt-gitops`** (y `k8s-bootstrap.sh` para Argo CD) |
 | [3. Cada microservicio](#3-cada-microservicio-por-ambiente) | Los pods de cada micro | Carpeta **`deploy/`** del repo del micro |
 
 ## 1. Tope de cada clúster
@@ -97,6 +97,7 @@ Se editan en el repo **`qt-gitops`**, con un **PR** (lo aprueba un admin). Al me
 | kube-state-metrics | `clusters/<ambiente>/addons/monitoring.yaml` | `kube-state-metrics.resources` |
 | node-exporter (uno por nodo) | `clusters/<ambiente>/addons/monitoring.yaml` | `prometheus-node-exporter.resources` |
 | Loki (logs) | `clusters/<ambiente>/addons/loki.yaml` | `singleBinary.resources` |
+| Tempo (trazas) | `clusters/<ambiente>/addons/tempo.yaml` | `tempo.resources` |
 | Alloy (recolector de logs) | `clusters/<ambiente>/addons/alloy.yaml` | `alloy.resources` |
 | Kyverno (admisión) | `clusters/<ambiente>/addons/kyverno.yaml` | `admissionController.container.resources` |
 | Kyverno (controladores) | `clusters/<ambiente>/addons/kyverno.yaml` | `backgroundController.resources`, `cleanupController.resources`, `reportsController.resources` |
@@ -125,6 +126,7 @@ En los mismos archivos están la **retención** y el **disco** de métricas y lo
 | kube-state-metrics | 10m · 64Mi · 128Mi | 10m · 64Mi · 128Mi | 20m · 64Mi · 256Mi |
 | node-exporter | 10m · 32Mi · 64Mi | 10m · 32Mi · 64Mi | 10m · 32Mi · 64Mi |
 | Loki | 50m · 256Mi · 512Mi | 100m · 384Mi · 1Gi | 200m · 512Mi · 2Gi |
+| Tempo | 50m · 256Mi · 512Mi | 100m · 384Mi · 1Gi | 200m · 512Mi · 2Gi |
 | Alloy | 20m · 128Mi · 256Mi | 20m · 128Mi · 256Mi | 50m · 128Mi · 512Mi |
 | Kyverno (admisión) | 50m · 128Mi · 384Mi | 50m · 128Mi · 384Mi | 100m · 128Mi · 512Mi |
 | Kyverno (cada controlador) | 10m · 64Mi · 128Mi | 10m · 64Mi · 128Mi | 20m · 64Mi · 256Mi |

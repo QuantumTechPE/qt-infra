@@ -38,6 +38,13 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Fijado por seguridad: quarkus-opentelemetry trae Guava 33.6.0
+                 (CVE-2026-102554, HIGH). Dependabot lo mantiene al día. -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.2-jre</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -61,6 +68,11 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <!-- Trazas OpenTelemetry (OTLP) → Tempo del clúster -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-opentelemetry</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

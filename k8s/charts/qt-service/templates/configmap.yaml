@@ -3,6 +3,13 @@
 {{- $platform := dict "QT_SERVICE" (include "qt-service.name" .) "QT_ENVIRONMENT" .Values.environment }}
 {{- /* Versión desplegada (tag de la imagen: vX.Y.Z-rc.N en CERT/PROD, sha-<commit> en DEV) */ -}}
 {{- with .Values.image.tag }}{{- $_ := set $platform "QT_VERSION" . }}{{- end }}
+{{- /* Trazas OpenTelemetry → Tempo del clúster (Quarkus las exporta por OTLP) */ -}}
+{{- if .Values.observability.tracing }}
+{{- $_ := set $platform "QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT" .Values.observability.tracingEndpoint }}
+{{- $_ := set $platform "OTEL_RESOURCE_ATTRIBUTES" (printf "deployment.environment=%s" .Values.environment) }}
+{{- else }}
+{{- $_ := set $platform "QUARKUS_OTEL_SDK_DISABLED" "true" }}
+{{- end }}
 {{- $data := merge (deepCopy (.Values.config | default dict)) $platform }}
 # ConfigMap del ambiente: valores NO secretos → variables de entorno.
 apiVersion: v1

@@ -30,6 +30,13 @@ ingress:
 metrics:
   enabled: false
 
+# Observabilidad (en los 3 ambientes; para uno solo, ponlo en values-<ambiente>.yaml)
+observability:
+  # Nginx no emite trazas OpenTelemetry
+  tracing: false
+  # Logs visibles en Grafana (Loki). false: el servicio no aparece en Grafana
+  grafana: true
+
 # El config.json de qt-config (files:) se monta aquí → la SPA lo lee de /runtime/config.json
 configFiles:
   mountPath: /usr/share/nginx/html/runtime

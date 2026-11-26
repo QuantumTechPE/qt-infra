@@ -32,6 +32,13 @@ spec:
               discovery.relabel "pods" {
                 targets = discovery.kubernetes.pods.targets
 
+                // Un micro con observability.grafana: false no envía sus logs
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_label_qt_platform_logs"]
+                  regex         = "false"
+                  action        = "drop"
+                }
+
                 rule {
                   source_labels = ["__meta_kubernetes_namespace"]
                   target_label  = "namespace"

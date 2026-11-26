@@ -1,4 +1,4 @@
-{{- if and (include "qt-service.enabled" .) .Values.metrics.enabled }}
+{{- if and (include "qt-service.enabled" .) .Values.metrics.enabled .Values.observability.grafana }}
 # Prometheus (kube-prometheus-stack del clúster) recoge las métricas del servicio.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

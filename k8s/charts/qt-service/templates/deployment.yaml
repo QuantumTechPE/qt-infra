@@ -25,6 +25,10 @@ spec:
     metadata:
       labels:
         {{- include "qt-service.labels" . | nindent 8 }}
+        {{- if not .Values.observability.grafana }}
+        # Alloy no envía a Loki los logs de los pods con esta etiqueta
+        qt.platform/logs: "false"
+        {{- end }}
       annotations:
         # Un cambio en los ConfigMaps reinicia los pods (rollout controlado).
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}

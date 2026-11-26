@@ -1,0 +1,53 @@
+# Trazas (__ENV__): Grafana Tempo (single binary) con almacenamiento en disco del
+# clúster. Recibe OpenTelemetry (OTLP) de los microservicios en
+# tempo.monitoring.svc:4317 (gRPC) / :4318 (HTTP). Retención: __TEMPO_RETENTION__.
+# Grafana lo consulta como datasource "Tempo" (con salto traza ↔ logs de Loki).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Repo comunitario: Grafana deprecó los charts de Tempo de grafana/helm-charts
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: tempo
+    targetRevision: 3.2.1
+    helm:
+      releaseName: tempo
+      valuesObject:
+        tempo:
+          reportingEnabled: false
+          retention: __TEMPO_RETENTION__
+          # OpenTelemetry (OTLP) en todas las interfaces del pod
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
+                http:
+                  endpoint: "0.0.0.0:4318"
+          # Recursos de este ambiente: ver docs/recursos.md de qt-infra
+          resources: __R_TEMPO__
+        persistence:
+          enabled: true
+          size: __TEMPO_STORAGE__
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
