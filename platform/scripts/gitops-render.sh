@@ -47,6 +47,7 @@ for env in "${ENVIRONMENTS[@]}"; do
     [KSM]="$(res 10m 64Mi 128Mi)"
     [NODE_EXPORTER]="$(res 10m 32Mi 64Mi)"
     [LOKI]="$(res 50m 256Mi 512Mi)"
+    [TEMPO]="$(res 50m 256Mi 512Mi)"
     [ALLOY]="$(res 20m 128Mi 256Mi)"
     [KYVERNO_ADMISSION]="$(res 50m 128Mi 384Mi)"
     [KYVERNO_CONTROLLER]="$(res 10m 64Mi 128Mi)"
@@ -56,6 +57,7 @@ for env in "${ENVIRONMENTS[@]}"; do
     cert)
       R[PROMETHEUS]="$(res 200m 1536Mi 3Gi)"
       R[LOKI]="$(res 100m 384Mi 1Gi)"
+      R[TEMPO]="$(res 100m 384Mi 1Gi)"
       ;;
     prod)
       R[PROMETHEUS]="$(res 300m 2Gi 4Gi)"
@@ -63,6 +65,7 @@ for env in "${ENVIRONMENTS[@]}"; do
       R[ALERTMANAGER]="$(res 20m 64Mi 256Mi)"
       R[KSM]="$(res 20m 64Mi 256Mi)"
       R[LOKI]="$(res 200m 512Mi 2Gi)"
+      R[TEMPO]="$(res 200m 512Mi 2Gi)"
       R[ALLOY]="$(res 50m 128Mi 512Mi)"
       R[KYVERNO_ADMISSION]="$(res 100m 128Mi 512Mi)"
       R[KYVERNO_CONTROLLER]="$(res 20m 64Mi 256Mi)"
@@ -80,9 +83,11 @@ for env in "${ENVIRONMENTS[@]}"; do
     -e "s|__PROM_STORAGE__|${prom_sto}|g" \
     -e "s|__LOKI_RETENTION__|${loki_ret}|g" \
     -e "s|__LOKI_STORAGE__|${loki_sto}|g" \
+    -e "s|__TEMPO_RETENTION__|${loki_ret}|g" \
+    -e "s|__TEMPO_STORAGE__|${loki_sto}|g" \
     "${res_args[@]}"
   unset R
-  ok "clusters/${env}: Ingress *.${domain} · imágenes ${action} · métricas ${prom_ret} · logs ${loki_ret}"
+  ok "clusters/${env}: Ingress *.${domain} · imágenes ${action} · métricas ${prom_ret} · logs y trazas ${loki_ret}"
 done
 rm -rf "$out/clusters/__ENV__"
 
@@ -95,7 +100,7 @@ grep -rl '__' "$out" | xargs sed -i \
   -e "s|__VAULT_SERVER__|${vault_server}|g" \
   -e "s|__VAULT_CA_B64__|${ca_b64}|g"
 
-if grep -rnE '__(R_[A-Z_]+|ENV|INGRESS_DOMAIN|IMAGE_POLICY_ACTION|PROM_RETENTION|PROM_STORAGE|LOKI_RETENTION|LOKI_STORAGE|GITHUB_OWNER(_LC)?|INFRA_REPO|GITOPS_REPO|GIT_BASE_URL|VAULT_SERVER|VAULT_CA_B64)__' "$out"; then
+if grep -rnE '__(R_[A-Z_]+|ENV|INGRESS_DOMAIN|IMAGE_POLICY_ACTION|PROM_RETENTION|PROM_STORAGE|LOKI_RETENTION|LOKI_STORAGE|TEMPO_RETENTION|TEMPO_STORAGE|GITHUB_OWNER(_LC)?|INFRA_REPO|GITOPS_REPO|GIT_BASE_URL|VAULT_SERVER|VAULT_CA_B64)__' "$out"; then
   die "Quedaron tokens sin reemplazar"
 fi
 ok "Repo GitOps generado en platform/.generated/${GITOPS_REPO} (Vault: ${vault_server})"

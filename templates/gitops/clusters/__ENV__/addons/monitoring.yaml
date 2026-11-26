@@ -86,6 +86,27 @@ spec:
               type: loki
               access: proxy
               url: http://loki.monitoring.svc:3100
+              jsonData:
+                # Log → traza: los micros escriben traceId=<id> en cada línea
+                derivedFields:
+                  - name: TraceID
+                    datasourceUid: tempo
+                    matcherRegex: 'traceId=(\w+)'
+                    url: '$${__value.raw}'
+            - name: Tempo
+              uid: tempo
+              type: tempo
+              access: proxy
+              url: http://tempo.monitoring.svc:3200
+              jsonData:
+                # Traza → logs: líneas de Loki con ese traceId
+                tracesToLogsV2:
+                  datasourceUid: loki
+                  filterByTraceID: true
+                  spanStartTimeShift: "-5m"
+                  spanEndTimeShift: "5m"
+                nodeGraph:
+                  enabled: true
           grafana.ini:
             analytics:
               reporting_enabled: false

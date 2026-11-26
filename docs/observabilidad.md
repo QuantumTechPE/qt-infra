@@ -4,10 +4,11 @@ Cada clúster (dev, cert y prod) tiene su propio stack, instalado y actualizado 
 
 | Componente | Para qué | Acceso |
 |---|---|---|
-| **Grafana** | Dashboards, exploración de métricas y logs | `http://grafana.<dominio del ambiente>` |
+| **Grafana** | Dashboards, exploración de métricas, logs y trazas | `http://grafana.<dominio del ambiente>` |
 | **Prometheus** + Alertmanager | Métricas de nodos, pods y microservicios; alertas | desde Grafana |
 | **Loki** (SingleBinary) | Logs de todos los pods | Grafana → Explore → Loki |
 | **Alloy** | Recolecta los logs de los pods y los envía a Loki | — |
+| **Tempo** | Trazas OpenTelemetry de los microservicios (OTLP en `tempo.monitoring.svc:4317`) | Grafana → Explore → Tempo |
 | node-exporter · kube-state-metrics | Métricas de nodos y de objetos de Kubernetes | — |
 
 La credencial de admin de Grafana es **distinta por ambiente**. Vive en Vault (`secret/platform/observability/<ambiente>`) y llega a Grafana por External Secrets:
@@ -18,18 +19,22 @@ La credencial de admin de Grafana es **distinta por ambiente**. Vive en Vault (`
 
 ## Retención por ambiente
 
-| Ambiente | Métricas (Prometheus) | Logs (Loki) |
-|---|---|---|
-| dev | 3 días · 10 Gi | 72 h · 10 Gi |
-| cert | 7 días · 20 Gi | 168 h · 20 Gi |
-| prod | 15 días · 50 Gi | 360 h · 50 Gi |
+| Ambiente | Métricas (Prometheus) | Logs (Loki) | Trazas (Tempo) |
+|---|---|---|---|
+| dev | 3 días · 10 Gi | 72 h · 10 Gi | 72 h · 10 Gi |
+| cert | 7 días · 20 Gi | 168 h · 20 Gi | 168 h · 20 Gi |
+| prod | 15 días · 50 Gi | 360 h · 50 Gi | 360 h · 50 Gi |
 
-Se ajusta en `platform/scripts/gitops-render.sh` (clústeres nuevos) o directamente en `qt-gitops/clusters/<ambiente>/addons/monitoring.yaml` y `loki.yaml` (por PR).
+Se ajusta en `platform/scripts/gitops-render.sh` (clústeres nuevos) o directamente en `qt-gitops/clusters/<ambiente>/addons/monitoring.yaml`, `loki.yaml` y `tempo.yaml` (por PR).
 
 ## Qué ve cada microservicio sin hacer nada
 
 - **Métricas**: el chart crea un `ServiceMonitor` si `metrics.enabled: true` (backends Quarkus: `/q/metrics`, con Micrometer). Prometheus lo descubre solo.
 - **Logs**: todo lo que el contenedor escribe en stdout llega a Loki con las etiquetas `namespace`, `pod`, `container`, `app` y `environment`.
+- **Trazas** (backends Quarkus): la plantilla trae `quarkus-opentelemetry`, y el chart le pasa el destino (`QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT`) y el ambiente (`OTEL_RESOURCE_ATTRIBUTES`).
+  - Cada petición HTTP genera una traza, con sus llamadas salientes (REST client, base de datos) como *spans*. Health y métricas (`/q/*`) no generan trazas.
+  - Cada línea de log lleva `traceId=<id>`. En Grafana, desde un log de Loki se salta a su traza en Tempo (campo *TraceID*), y desde una traza a sus logs.
+  - Para desactivarlas en un servicio: `tracing.enabled: false` en su `deploy/values.yaml`.
 - **Dashboard "QT · Microservicios"** (carpeta *QT Plataforma*), con selector de microservicio:
   - peticiones/s, % de errores 5xx y latencia media;
   - CPU y memoria por pod comparadas con el request y el límite del **plan de recursos**;

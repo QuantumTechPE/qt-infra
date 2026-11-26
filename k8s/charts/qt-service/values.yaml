@@ -77,6 +77,13 @@ ingress:
   pathType: Prefix
   annotations: {}
 
+# Trazas OpenTelemetry → Tempo del clúster (add-on "tempo" de qt-gitops). La
+# plataforma pasa el destino como QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT y el ambiente
+# en OTEL_RESOURCE_ATTRIBUTES. Un frontend (Nginx) las ignora.
+tracing:
+  enabled: true
+  endpoint: http://tempo.monitoring.svc:4317
+
 # Métricas para Prometheus (ServiceMonitor). Quarkus: /q/metrics.
 metrics:
   enabled: false
