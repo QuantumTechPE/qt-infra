@@ -4,7 +4,7 @@ Aquí va **solo lo técnico**. La configuración de cada ambiente vive en el rep
 
 | Dónde | Qué define | Llega al pod como |
 |---|---|---|
-| `deploy/values.yaml` | Común: puerto, probes, ruta pública y `requiredConfig` | Deployment, Service, Ingress |
+| `deploy/values.yaml` | Común: puerto, probes, ruta pública, observabilidad (apagada: solo health) y `requiredConfig` | Deployment, Service, Ingress |
 | `deploy/values-dev.yaml` · `values-cert.yaml` · `values-prod.yaml` | **Plan de recursos**, réplicas, **HPA**, PDB | Deployment, HPA, PDB |
 | **qt-config** `<ambiente>/qt-template-angular-<ambiente>.yaml` → `files: config.json` | Configuración de runtime de la SPA (ambiente, URL de la API, flags) | ConfigMap servido en `/runtime/config.json` |
 
