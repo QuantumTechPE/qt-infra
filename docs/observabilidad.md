@@ -34,7 +34,24 @@ Se ajusta en `platform/scripts/gitops-render.sh` (clústeres nuevos) o directame
 - **Trazas** (backends Quarkus): la plantilla trae `quarkus-opentelemetry`, y el chart le pasa el destino (`QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT`) y el ambiente (`OTEL_RESOURCE_ATTRIBUTES`).
   - Cada petición HTTP genera una traza, con sus llamadas salientes (REST client, base de datos) como *spans*. Health y métricas (`/q/*`) no generan trazas.
   - Cada línea de log lleva `traceId=<id>`. En Grafana, desde un log de Loki se salta a su traza en Tempo (campo *TraceID*), y desde una traza a sus logs.
-  - Para desactivarlas en un servicio: `tracing.enabled: false` en su `deploy/values.yaml`.
+
+
+### Activar o desactivar por servicio
+
+En el `deploy/values.yaml` del micro, o en `values-<ambiente>.yaml` para un solo ambiente:
+
+```yaml
+observability:
+  tracing: true   # OpenTelemetry → Tempo. false: el SDK no arranca, sin consumo por trazas
+  grafana: true   # métricas (Prometheus) y logs (Loki). false: el servicio no aparece en Grafana
+```
+
+| Opción | `true` | `false` |
+|---|---|---|
+| `tracing` | Trazas en Tempo y `traceId` en los logs | `QUARKUS_OTEL_SDK_DISABLED=true`: no se crean ni envían trazas |
+| `grafana` | ServiceMonitor (métricas) y logs en Loki | Sin ServiceMonitor; el pod lleva `qt.platform/logs: "false"` y Alloy descarta sus logs (siguen en `kubectl logs`) |
+
+Es lo técnico del micro, así que viaja con la versión: DEV → congelamiento → pase.
 - **Dashboard "QT · Microservicios"** (carpeta *QT Plataforma*), con selector de microservicio:
   - peticiones/s, % de errores 5xx y latencia media;
   - CPU y memoria por pod comparadas con el request y el límite del **plan de recursos**;

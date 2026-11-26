@@ -31,6 +31,13 @@ metrics:
   enabled: true
   path: /q/metrics
 
+# Observabilidad (en los 3 ambientes; para uno solo, ponlo en values-<ambiente>.yaml)
+observability:
+  # Trazas OpenTelemetry → Tempo. false: no se generan trazas (ahorra CPU/memoria)
+  tracing: true
+  # Métricas y logs visibles en Grafana. false: el servicio no aparece en Grafana
+  grafana: true
+
 # Los archivos de qt-config (files:) se montan aquí: Quarkus lee ./config/ (el
 # WORKDIR de la imagen es /deployments) con prioridad sobre el
 # application.properties empaquetado.

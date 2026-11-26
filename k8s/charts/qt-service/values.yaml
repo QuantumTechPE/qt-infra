@@ -77,12 +77,19 @@ ingress:
   pathType: Prefix
   annotations: {}
 
-# Trazas OpenTelemetry → Tempo del clúster (add-on "tempo" de qt-gitops). La
-# plataforma pasa el destino como QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT y el ambiente
-# en OTEL_RESOURCE_ATTRIBUTES. Un frontend (Nginx) las ignora.
-tracing:
-  enabled: true
-  endpoint: http://tempo.monitoring.svc:4317
+# Observabilidad del servicio. Cada micro la ajusta en su deploy/values.yaml.
+observability:
+  # Trazas OpenTelemetry → Tempo del clúster (add-on "tempo" de qt-gitops). La
+  # plataforma pasa el destino (QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT) y el ambiente
+  # (OTEL_RESOURCE_ATTRIBUTES). false: el SDK no arranca (QUARKUS_OTEL_SDK_DISABLED),
+  # sin consumo de CPU/memoria por trazas. Un frontend (Nginx) no las emite.
+  tracing: true
+  # Conexión con Grafana: métricas → Prometheus (ServiceMonitor, si el servicio
+  # las expone: metrics.enabled) y logs → Loki (Alloy). false: el servicio no
+  # aparece en Grafana (sus logs siguen en `kubectl logs`).
+  grafana: true
+  # Destino OTLP (Tempo del clúster)
+  tracingEndpoint: http://tempo.monitoring.svc:4317
 
 # Métricas para Prometheus (ServiceMonitor). Quarkus: /q/metrics.
 metrics:
