@@ -290,7 +290,7 @@ executed() {
   else
     [[ -n "${VAULT_TOKEN:-}" ]] && agenda_state fallido
     move_all "$issue" "Reversión"
-    comment "$REPO" "$issue" "🔴 **El pase falló**: Argo CD no quedó *Healthy* y el pipeline restauró la versión anterior (rollback GitOps). 👉 [Ver CICD PROD](${run_url})"
+    comment "$REPO" "$issue" "🔴 **El pase falló**: Argo CD no quedó *Healthy* y el pipeline restauró la versión anterior (rollback GitOps). 👉 [Ver el diagnóstico en CICD PROD](${run_url}): eventos y logs de los pods que fallaron."
   fi
 }
 

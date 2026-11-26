@@ -31,6 +31,44 @@ degraded_since=""
 degraded_resources() {
   jq -r '.status.resources[]? | select(.health.status == "Degraded") | "  - \(.kind)/\(.name): \(.health.message // "")"' <<<"$1" || true
 }
+
+# Diagnóstico para el dev cuando el despliegue falla (sin acceso al clúster):
+# estado de la app, recursos no sanos y, de los pods nuevos que no están listos,
+# sus eventos de advertencia (p. ej. "Readiness probe failed: ... 404") y las
+# últimas líneas de log. Va al log del job y al resumen del run.
+diagnose() {
+  local app tree pods ns name uid events logs
+  app="$(get_app 2>/dev/null || echo '{}')"
+  tree="$(get_app /resource-tree 2>/dev/null || echo '{}')"
+  {
+    echo "### 🩺 Diagnóstico de ${APP} (revisión ${REVISION:0:7})"
+    echo "**Estado:** sync=$(jq -r '.status.sync.status // "?"' <<<"$app") · health=$(jq -r '.status.health.status // "?"' <<<"$app")"
+    jq -r '.status.conditions[]? | "- **\(.type)**: \(.message)"' <<<"$app" 2>/dev/null || true
+    echo
+    echo "**Recursos no sanos**"
+    jq -r '[.status.resources[]? | select(.health.status != null and .health.status != "Healthy")
+      | "- `\(.kind)/\(.name)`: **\(.health.status)** \(.health.message // "")"] | if length == 0 then "- (ninguno informado)" else .[] end' <<<"$app" 2>/dev/null || true
+    # Pods que no están listos, los más nuevos primero (son los de la versión que falla)
+    pods="$(jq -c '[.nodes[]? | select(.kind == "Pod" and (.health.status // "") != "Healthy")]
+      | sort_by(.createdAt) | reverse | .[:2][]' <<<"$tree" 2>/dev/null || true)"
+    while IFS= read -r pod; do
+      [[ -z "$pod" ]] && continue
+      ns="$(jq -r '.namespace' <<<"$pod")"
+      name="$(jq -r '.name' <<<"$pod")"
+      uid="$(jq -r '.uid' <<<"$pod")"
+      echo
+      echo "**Pod \`${name}\`** · $(jq -r '[.info[]? | "\(.name): \(.value)"] | join(" · ")' <<<"$pod")"
+      events="$(get_app "/events?resourceNamespace=${ns}&resourceName=${name}&resourceUID=${uid}" 2>/dev/null |
+        jq -r '[.items[]? | select(.type == "Warning") | "- \(.reason): \(.message) (×\(.count // 1))"] | unique | .[-5:][]' 2>/dev/null || true)"
+      echo "Eventos:"
+      echo "${events:-- (sin advertencias)}"
+      logs="$(get_app "/logs?namespace=${ns}&podName=${name}&tailLines=25&follow=false" 2>/dev/null |
+        jq -r '.result.content // empty' 2>/dev/null | tail -n 25 || true)"
+      echo "Últimas líneas de log:"
+      printf '```\n%s\n```\n' "${logs:-(sin logs o sin permiso de lectura de logs)}"
+    done <<<"$pods"
+  } | tee -a "$summary"
+}
 while ((SECONDS < deadline)); do
   if app="$(get_app 2>/dev/null)"; then
     sync="$(jq -r '.status.sync.status // "Unknown"' <<<"$app")"
@@ -51,7 +89,7 @@ while ((SECONDS < deadline)); do
           degraded_resources "$app"
         elif ((SECONDS - degraded_since >= DEGRADED_GRACE)); then
           echo "::error::${APP} sigue Degraded tras ${DEGRADED_GRACE}s con la revisión ${REVISION:0:7}"
-          degraded_resources "$app"
+          diagnose
           exit 1
         fi
       else
@@ -65,4 +103,5 @@ while ((SECONDS < deadline)); do
 done
 
 echo "::error::Timeout (${TIMEOUT}s) esperando a ${APP} en la revisión ${REVISION:0:7}"
+diagnose
 exit 1
