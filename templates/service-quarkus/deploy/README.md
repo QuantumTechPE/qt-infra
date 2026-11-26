@@ -4,7 +4,7 @@ Aquí va **solo lo técnico**. La configuración de cada ambiente vive en el rep
 
 | Dónde | Qué define | Llega al pod como |
 |---|---|---|
-| `deploy/values.yaml` | Común: puerto, probes, ruta pública, métricas y `requiredConfig` | Deployment, Service, Ingress, ServiceMonitor |
+| `deploy/values.yaml` | Común: puerto, probes, ruta pública, métricas, observabilidad (`tracing`, `grafana`) y `requiredConfig` | Deployment, Service, Ingress, ServiceMonitor, variables OpenTelemetry |
 | `deploy/values-dev.yaml` · `values-cert.yaml` · `values-prod.yaml` | **Plan de recursos** (requests/limits), réplicas, **HPA**, PDB | Deployment, HPA, PDB |
 | **qt-config** `<ambiente>/qt-template-quarkus-<ambiente>.yaml` → `env:` | Variables de entorno no secretas | ConfigMap `qt-template-quarkus-config` |
 | **qt-config** … → `files:` | `application.properties` del ambiente | ConfigMap montado en `/deployments/config/` |

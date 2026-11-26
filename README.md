@@ -83,6 +83,8 @@ flowchart LR
 
 ## Empezar
 
+> **Operar la plataforma:** los portales (URL, usuario maestro y dónde está cada contraseña) y qué va en cada archivo de un despliegue están en **[documentacion/](documentacion/README.md)**.
+
 > **Servidor definitivo:** el levantamiento total (migración desde el servidor de pruebas o instalación desde cero, con los parámetros que cambian) está en **[docs/levantamiento.md](docs/levantamiento.md)**.
 
 1. **[docs/puesta-en-marcha.md](docs/puesta-en-marcha.md)**: organización, plataforma, clústeres y primer microservicio.
